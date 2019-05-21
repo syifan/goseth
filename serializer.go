@@ -7,11 +7,6 @@ import (
 	"reflect"
 )
 
-// Serializer can serialize anything into a json format
-type Serializer interface {
-	Serialize(item interface{}, writer io.Writer) error
-}
-
 func MakeSerializer() Serializer {
 	return serializerImpl{}
 }
