@@ -147,4 +147,28 @@ var _ = Describe("Deserializer", func() {
 		Expect(err).To(BeNil())
 		Expect(a).To(Equal(uint64(1)))
 	})
+
+	It("should deserilize float32", func() {
+		str := `{
+			"value": 0.1,
+			"t": "float32"
+		}`
+
+		a, err := d.Deserialize(strings.NewReader(str))
+
+		Expect(err).To(BeNil())
+		Expect(a).To(Equal(float32(0.1)))
+	})
+
+	It("should deserilize float64", func() {
+		str := `{
+			"value": 0.1,
+			"t": "float64"
+		}`
+
+		a, err := d.Deserialize(strings.NewReader(str))
+
+		Expect(err).To(BeNil())
+		Expect(a).To(Equal(float64(0.1)))
+	})
 })

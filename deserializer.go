@@ -62,6 +62,10 @@ func (d deserializerImpl) parseValue(
 		return d.parseUint32Value(m["value"])
 	case "uint64":
 		return d.parseUint64Value(m["value"])
+	case "float32":
+		return d.parseFloat32Value(m["value"])
+	case "float64":
+		return d.parseFloat64Value(m["value"])
 
 	default:
 		return nil, errors.New("type " + typeName + "is not supported")
@@ -140,6 +144,22 @@ func (d deserializerImpl) parseUint64Value(m *json.RawMessage) (uint64, error) {
 	return uint64(value), nil
 }
 
+func (d deserializerImpl) parseFloat32Value(
+	m *json.RawMessage,
+) (float32, error) {
+	valueString := rawMsgMustConvertToString(m)
+	value := stringMustConvertToFloat(valueString)
+	return float32(value), nil
+}
+
+func (d deserializerImpl) parseFloat64Value(
+	m *json.RawMessage,
+) (float64, error) {
+	valueString := rawMsgMustConvertToString(m)
+	value := stringMustConvertToFloat(valueString)
+	return float64(value), nil
+}
+
 func rawMsgMustConvertToString(m *json.RawMessage) string {
 	valueBytes, err := m.MarshalJSON()
 	if err != nil {
@@ -163,4 +183,12 @@ func stringMustConvertToUint(s string) uint64 {
 		panic(err)
 	}
 	return valueInt
+}
+
+func stringMustConvertToFloat(s string) float64 {
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
