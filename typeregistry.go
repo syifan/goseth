@@ -21,7 +21,9 @@ type TypeRegistry interface {
 // GetTypeRegistry get the singleton instance of the TypeRegistry
 func GetTypeRegistry() TypeRegistry {
 	_once.Do(func() {
-		_instance = &registryImpl{}
+		_instance = &registryImpl{
+			dict: make(map[string]reflect.Type),
+		}
 	})
 
 	return _instance
@@ -32,8 +34,9 @@ type registryImpl struct {
 }
 
 func (r *registryImpl) Register(typedNil interface{}) {
-	t := reflect.TypeOf(typedNil)
-	r.dict[t.PkgPath()+t.Name()] = t
+	t := reflect.TypeOf(typedNil).Elem()
+	name := t.PkgPath() + "." + t.Name()
+	r.dict[name] = t
 }
 
 func (r *registryImpl) GetType(name string) reflect.Type {

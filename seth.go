@@ -9,5 +9,5 @@ type Serializer interface {
 
 // Deserializer can parse a serialized string back to an object
 type Deserializer interface {
-	Deserialize(item interface{}, reader io.Reader) error
+	Deserialize(reader io.Reader) (interface{}, error)
 }

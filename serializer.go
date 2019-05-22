@@ -7,6 +7,7 @@ import (
 	"reflect"
 )
 
+// MakeSerializer creates a default serializer
 func MakeSerializer() Serializer {
 	return serializerImpl{}
 }

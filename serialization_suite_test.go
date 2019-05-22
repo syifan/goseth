@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/syifan/seth"
 )
 
 func TestSerialization(t *testing.T) {
@@ -19,4 +20,10 @@ type sampleStruct1 struct {
 
 type sampleStruct2 struct {
 	another *sampleStruct2
+}
+
+func init() {
+	reg := seth.GetTypeRegistry()
+	reg.Register((*sampleStruct1)(nil))
+	reg.Register((*sampleStruct2)(nil))
 }

@@ -18,13 +18,12 @@ var _ = Describe("Deserializer", func() {
 	})
 
 	It("should deserilize int", func() {
-		var a int
 		str := `{
-			"value": 1, 
+			"value": 1,
 			"t": "int"
 		}`
 
-		err := d.Deserialize(a, strings.NewReader(str))
+		a, err := d.Deserialize(strings.NewReader(str))
 
 		Expect(err).To(BeNil())
 		Expect(a).To(Equal(1))
