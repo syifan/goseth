@@ -1,7 +1,9 @@
 package seth
 
 import (
+	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 )
 
@@ -41,4 +43,15 @@ func (r *registryImpl) Register(typedNil interface{}) {
 
 func (r *registryImpl) GetType(name string) reflect.Type {
 	return r.dict[name]
+}
+
+func BuildRegistry() {
+	i := 0
+	found := true
+	for found {
+		pc, file, line, ok := runtime.Caller(i)
+		fmt.Println(pc, file, line, ok)
+		found = ok
+		i++
+	}
 }
