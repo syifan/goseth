@@ -20,7 +20,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize bool", func() {
 		str := `{
 			"value": true,
-			"t": "bool"
+			"type": "bool"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -31,7 +31,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize int", func() {
 		str := `{
 			"value": 1,
-			"t": "int"
+			"type": "int"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -43,7 +43,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize int8", func() {
 		str := `{
 			"value": 1,
-			"t": "int8"
+			"type": "int8"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -55,7 +55,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize int16", func() {
 		str := `{
 			"value": 1,
-			"t": "int16"
+			"type": "int16"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -67,7 +67,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize int32", func() {
 		str := `{
 			"value": 1,
-			"t": "int32"
+			"type": "int32"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -79,7 +79,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize int64", func() {
 		str := `{
 			"value": 1,
-			"t": "int64"
+			"type": "int64"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -91,7 +91,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize uint", func() {
 		str := `{
 			"value": 1,
-			"t": "uint"
+			"type": "uint"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -103,7 +103,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize uint8", func() {
 		str := `{
 			"value": 1,
-			"t": "uint8"
+			"type": "uint8"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -115,7 +115,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize uint16", func() {
 		str := `{
 			"value": 1,
-			"t": "uint16"
+			"type": "uint16"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -127,7 +127,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize uint32", func() {
 		str := `{
 			"value": 1,
-			"t": "uint32"
+			"type": "uint32"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -139,7 +139,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize uint64", func() {
 		str := `{
 			"value": 1,
-			"t": "uint64"
+			"type": "uint64"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -151,7 +151,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize float32", func() {
 		str := `{
 			"value": 0.1,
-			"t": "float32"
+			"type": "float32"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -163,7 +163,7 @@ var _ = Describe("Deserializer", func() {
 	It("should deserilize float64", func() {
 		str := `{
 			"value": 0.1,
-			"t": "float64"
+			"type": "float64"
 		}`
 
 		a, err := d.Deserialize(strings.NewReader(str))
@@ -171,4 +171,44 @@ var _ = Describe("Deserializer", func() {
 		Expect(err).To(BeNil())
 		Expect(a).To(Equal(float64(0.1)))
 	})
+
+	It("should deserialize struct", func() {
+		str := `{
+			"value": {
+				"Field1": {
+					"value": false,
+					"type": "bool"
+				},
+				"field2": {
+					"value": 1,
+					"type": "int"
+				}
+			},
+			"type": "github.com/syifan/seth_test.sampleStruct1"
+		}`
+
+		a, err := d.Deserialize(strings.NewReader(str))
+
+		Expect(err).To(BeNil())
+		exp := sampleStruct1{Field1: false, field2: 1}
+		Expect(a).To(Equal(exp))
+	})
+
+	// It("should deserialize pointer", func() {
+	// 	str := `{
+	// 		"value": 1234
+	// 		"type": "*github.com/syifan/seth_test.sampleStruct1"
+	// 		"dict": {
+	// 			"1234": {
+	// 				value:
+	// 			}
+	// 		}
+	// 	}`
+
+	// 	a, err := d.Deserialize(strings.NewReader(str))
+
+	// 	Expect(err).To(BeNil())
+	// 	Expect(a).To(Equal(float64(0.1)))
+
+	// })
 })

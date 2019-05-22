@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"reflect"
 	"strconv"
+	"unsafe"
 )
 
 // MakeDeserializer creates the default deserializer
@@ -13,7 +15,14 @@ func MakeDeserializer() Deserializer {
 	return deserializerImpl{}
 }
 
-type deserializerImpl struct{}
+type deserializerDict struct {
+	deserialized map[string]interface{}
+	raw          *json.RawMessage
+}
+
+type deserializerImpl struct {
+	dict deserializerDict
+}
 
 func (d deserializerImpl) Deserialize(
 	r io.Reader,
@@ -23,16 +32,20 @@ func (d deserializerImpl) Deserialize(
 		return nil, err
 	}
 
-	var m map[string]*json.RawMessage
-	err = json.Unmarshal(data, &m)
-
-	return d.parseValue(m)
+	msg := json.RawMessage(data)
+	return d.parseValue(&msg)
 }
 
 func (d deserializerImpl) parseValue(
-	m map[string]*json.RawMessage,
+	msg *json.RawMessage,
 ) (interface{}, error) {
-	typeNameBytes, err := m["t"].MarshalJSON()
+	var m map[string]*json.RawMessage
+	err := json.Unmarshal([]byte(*msg), &m)
+	if err != nil {
+		return nil, err
+	}
+
+	typeNameBytes, err := m["type"].MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +81,46 @@ func (d deserializerImpl) parseValue(
 		return d.parseFloat64Value(m["value"])
 
 	default:
-		return nil, errors.New("type " + typeName + "is not supported")
+		return d.parseCustomType(typeName, m["value"])
 	}
+}
+
+func (d deserializerImpl) parseCustomType(
+	typeName string,
+	m *json.RawMessage,
+) (interface{}, error) {
+	reg := GetTypeRegistry()
+	t := reg.GetType(typeName)
+	v := reflect.New(t).Elem()
+
+	var fields map[string]*json.RawMessage
+	mBytes, err := m.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(mBytes, &fields)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		name := t.Field(i).Name
+		value, err := d.parseValue(fields[name])
+		if err != nil {
+			return nil, err
+		}
+
+		if !field.CanSet() {
+			field = reflect.NewAt(
+				field.Type(),
+				unsafe.Pointer(field.UnsafeAddr()),
+			).Elem()
+		}
+		field.Set(reflect.ValueOf(value))
+	}
+
+	return v.Interface(), nil
 }
 
 func (d deserializerImpl) parseBoolValue(m *json.RawMessage) (bool, error) {
@@ -161,11 +212,7 @@ func (d deserializerImpl) parseFloat64Value(
 }
 
 func rawMsgMustConvertToString(m *json.RawMessage) string {
-	valueBytes, err := m.MarshalJSON()
-	if err != nil {
-		panic(err)
-	}
-
+	valueBytes := []byte(*m)
 	return string(valueBytes)
 }
 
