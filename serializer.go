@@ -44,13 +44,15 @@ func (s *serializerImpl) serializeItem(
 		reflect.Int8,
 		reflect.Int16,
 		reflect.Int32,
-		reflect.Int64,
+		reflect.Int64:
+		fmt.Fprintf(writer, "%d", value.Int())
+	case
 		reflect.Uint,
 		reflect.Uint8,
 		reflect.Uint16,
 		reflect.Uint32,
 		reflect.Uint64:
-		fmt.Fprintf(writer, "%d", value.Int())
+		fmt.Fprintf(writer, "%d", value.Uint())
 	case reflect.Float32, reflect.Float64:
 		fmt.Fprintf(writer, "%.15f", value.Float())
 	case reflect.Bool:
