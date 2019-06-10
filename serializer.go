@@ -66,6 +66,12 @@ func (s *serializerImpl) serializeItem(
 		if err != nil {
 			return err
 		}
+	case reflect.Interface:
+		err := s.serializeInterface(value, writer)
+		if err != nil {
+			return err
+		}
+
 	default:
 		return errors.New(
 			"type " + value.Kind().String() + " is not supported")
@@ -93,11 +99,28 @@ func (s *serializerImpl) serializeStruct(
 			fmt.Fprint(writer, ",")
 		}
 		fmt.Fprintf(writer, `"%s":`, value.Type().Field(i).Name)
-		s.serializeItem(value.Field(i), writer, false)
+		err := s.serializeItem(value.Field(i), writer, false)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprint(writer, "}")
 
+	return nil
+}
+
+func (s *serializerImpl) serializeInterface(
+	value reflect.Value,
+	writer io.Writer,
+) error {
+	fmt.Fprintf(writer, "{\"value\":")
+	err := s.serializeItem(value.Elem(), writer, false)
+	if err != nil {
+		return nil
+	}
+	fmt.Fprintf(writer, ", \"type\": \"%s\", \"isInterface\": true}",
+		value.Type())
 	return nil
 }
 
