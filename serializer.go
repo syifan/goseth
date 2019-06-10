@@ -1,4 +1,4 @@
-package seth
+package goseth
 
 import (
 	"errors"

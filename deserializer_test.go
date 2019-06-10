@@ -1,11 +1,11 @@
-package seth_test
+package goseth_test
 
 import (
 	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/syifan/seth"
+	. "github.com/syifan/goseth"
 )
 
 var _ = Describe("Deserializer", func() {
