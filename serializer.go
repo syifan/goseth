@@ -46,8 +46,7 @@ func (s *serializerImpl) serializeItem(
 		reflect.Int32,
 		reflect.Int64:
 		fmt.Fprintf(writer, "%d", value.Int())
-	case
-		reflect.Uint,
+	case reflect.Uint,
 		reflect.Uint8,
 		reflect.Uint16,
 		reflect.Uint32,
