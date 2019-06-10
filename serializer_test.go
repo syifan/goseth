@@ -1,4 +1,4 @@
-package seth_test
+package goseth_test
 
 import (
 	"regexp"
@@ -6,7 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/syifan/seth"
+	. "github.com/syifan/goseth"
 )
 
 var _ = Describe("Serializer Impl", func() {
@@ -74,7 +74,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize simple struct", func() {
 		a := sampleStruct1{}
-		exp := `{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"seth_test.sampleStruct1"}`
+		exp := `{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"goseth_test.sampleStruct1"}`
 
 		err := s.Serialize(a, &sb)
 
@@ -84,7 +84,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize pointer", func() {
 		a := &sampleStruct1{}
-		re := `{"value":[0-9]+,"type":"\*seth_test.sampleStruct1","dict":{"[0-9]+":{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"seth_test.sampleStruct1"}}}`
+		re := `{"value":[0-9]+,"type":"\*goseth_test.sampleStruct1","dict":{"[0-9]+":{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"goseth_test.sampleStruct1"}}}`
 
 		err := s.Serialize(a, &sb)
 
@@ -97,7 +97,7 @@ var _ = Describe("Serializer Impl", func() {
 		s2 := sampleStruct2{}
 		s1.another = &s2
 		s2.another = &s1
-		re := `{"value":{"another":{"value":[0-9]+,"type":"\*seth_test.sampleStruct2"}},"type":"seth_test.sampleStruct2","dict":{"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*seth_test.sampleStruct2"}},"type":"seth_test.sampleStruct2"},"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*seth_test.sampleStruct2"}},"type":"seth_test.sampleStruct2"}}}`
+		re := `{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2","dict":{"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2"},"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2"}}}`
 
 		err := s.Serialize(s1, &sb)
 

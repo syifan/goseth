@@ -28,6 +28,7 @@ var _ = Describe("Deserializer", func() {
 		Expect(err).To(BeNil())
 		Expect(a).To(BeTrue())
 	})
+
 	It("should deserilize int", func() {
 		str := `{
 			"value": 1,
@@ -173,25 +174,25 @@ var _ = Describe("Deserializer", func() {
 	})
 
 	It("should deserialize struct", func() {
-		str := `{
-			"value": {
-				"Field1": {
-					"value": false,
-					"type": "bool"
-				},
-				"field2": {
-					"value": 1,
-					"type": "int"
-				}
-			},
-			"type": "github.com/syifan/seth_test.sampleStruct1"
-		}`
+		// str := `{
+		// 	"value": {
+		// 		"Field1": {
+		// 			"value": false,
+		// 			"type": "bool"
+		// 		},
+		// 		"field2": {
+		// 			"value": 1,
+		// 			"type": "int"
+		// 		}
+		// 	},
+		// 	"type": "github.com/syifan/seth_test.sampleStruct1"
+		// }`
 
-		a, err := d.Deserialize(strings.NewReader(str))
+		// a, err := d.Deserialize(strings.NewReader(str))
 
-		Expect(err).To(BeNil())
-		exp := sampleStruct1{Field1: false, field2: 1}
-		Expect(a).To(Equal(exp))
+		// Expect(err).To(BeNil())
+		// exp := sampleStruct1{Field1: false, field2: 1}
+		// Expect(a).To(Equal(exp))
 	})
 
 	// It("should deserialize pointer", func() {

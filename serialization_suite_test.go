@@ -1,10 +1,11 @@
-package seth_test
+package goseth_test
 
 import (
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/syifan/goseth"
 )
 
 func TestSerialization(t *testing.T) {
