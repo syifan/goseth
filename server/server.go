@@ -4,19 +4,24 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/syifan/goseth"
 )
 
 // Server runs an HTTP server and shows the serialization results over webpage
 type Server struct {
-	item interface{}
+	item       interface{}
+	fileServer http.Handler
 }
 
 // NewServer creates a new server. The server always returns the json
 // representation of the provided item.
 func NewServer(item interface{}) *Server {
-	s := &Server{item: item}
+	s := &Server{
+		item:       item,
+		fileServer: http.FileServer(assets),
+	}
 	return s
 }
 
@@ -38,6 +43,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		goseth.MakeSerializer().Serialize(s.item, w)
 		return
 	}
-	w.WriteHeader(404)
 
+	if strings.HasPrefix(req.URL.Path, "/") {
+		s.fileServer.ServeHTTP(w, req)
+		return
+	}
+
+	w.WriteHeader(404)
 }
