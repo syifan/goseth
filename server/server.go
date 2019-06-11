@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -41,12 +40,17 @@ func (s *Server) Run() {
 // ServeHTTP respond to client http request
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/serialize" {
-		buf := bytes.NewBufferString("")
-		err := goseth.MakeSerializer().Serialize(s.item, buf)
+		//buf := bytes.NewBufferString("")
+		//err := goseth.MakeSerializer().Serialize(s.item, buf)
+		//if err != nil {
+		//	panic(err)
+		//}
+		//w.Write(buf.Bytes())
+		err := goseth.MakeSerializer().Serialize(s.item, w)
 		if err != nil {
 			panic(err)
 		}
-		w.Write(buf.Bytes())
+
 		return
 	}
 

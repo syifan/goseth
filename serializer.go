@@ -30,7 +30,11 @@ func (s serializerImpl) Serialize(
 	s.serializedPtr = make(map[uintptr]bool)
 
 	value := reflect.ValueOf(item)
-	return s.serializeItem(value, writer, true)
+	err := s.serializeItem(value, writer, true)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *serializerImpl) serializeItem(
@@ -44,6 +48,8 @@ func (s *serializerImpl) serializeItem(
 
 	fmt.Fprintf(writer, `{"value":`)
 	switch value.Kind() {
+	case reflect.Invalid:
+		fmt.Fprintf(writer, "\"null\"")
 	case reflect.Int,
 		reflect.Int8,
 		reflect.Int16,
@@ -72,6 +78,11 @@ func (s *serializerImpl) serializeItem(
 		if err != nil {
 			return err
 		}
+	case reflect.Map:
+		err := s.serializeMap(value, writer)
+		if err != nil {
+			return err
+		}
 	case reflect.Ptr:
 		err := s.serializePtr(value, writer)
 		if err != nil {
@@ -83,7 +94,9 @@ func (s *serializerImpl) serializeItem(
 			"type " + value.Kind().String() + " is not supported")
 	}
 
-	fmt.Fprintf(writer, `,"type":"%s"`, value.Type())
+	if value.Kind() != reflect.Invalid {
+		fmt.Fprintf(writer, `,"type":"%s"`, value.Type())
+	}
 
 	if isRoot {
 		err := s.serializeDict(writer)
@@ -141,6 +154,35 @@ func (s *serializerImpl) serializeSlice(
 		if err != nil {
 			return err
 		}
+	}
+	fmt.Fprint(writer, "]")
+	return nil
+}
+
+func (s *serializerImpl) serializeMap(
+	value reflect.Value,
+	writer io.Writer,
+) error {
+	fmt.Fprint(writer, "[")
+	i := 0
+	for _, key := range value.MapKeys() {
+		if i > 0 {
+			fmt.Fprint(writer, ",")
+		}
+		i++
+		fmt.Fprintf(writer, "{\"key\": ")
+		err := s.serializeItem(key, writer, false)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(writer, ", \"value\":")
+		err = s.serializeItem(value.MapIndex(key), writer, false)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(writer, "}")
 	}
 	fmt.Fprint(writer, "]")
 	return nil
