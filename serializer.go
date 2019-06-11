@@ -38,6 +38,10 @@ func (s *serializerImpl) serializeItem(
 	writer io.Writer,
 	isRoot bool,
 ) error {
+	if value.Kind() == reflect.Interface {
+		value = value.Elem()
+	}
+
 	fmt.Fprintf(writer, `{"value":`)
 	switch value.Kind() {
 	case reflect.Int,
@@ -56,18 +60,20 @@ func (s *serializerImpl) serializeItem(
 		fmt.Fprintf(writer, "%.15f", value.Float())
 	case reflect.Bool:
 		fmt.Fprintf(writer, "%t", value.Bool())
+	case reflect.String:
+		fmt.Fprintf(writer, "%s", value.String())
 	case reflect.Struct:
 		err := s.serializeStruct(value, writer)
 		if err != nil {
 			return err
 		}
-	case reflect.Ptr:
-		err := s.serializePtr(value, writer)
+	case reflect.Slice, reflect.Array, reflect.Chan:
+		err := s.serializeSlice(value, writer)
 		if err != nil {
 			return err
 		}
-	case reflect.Interface:
-		err := s.serializeInterface(value, writer)
+	case reflect.Ptr:
+		err := s.serializePtr(value, writer)
 		if err != nil {
 			return err
 		}
@@ -80,7 +86,10 @@ func (s *serializerImpl) serializeItem(
 	fmt.Fprintf(writer, `,"type":"%s"`, value.Type())
 
 	if isRoot {
-		s.serializeDict(writer)
+		err := s.serializeDict(writer)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintf(writer, "}")
@@ -110,26 +119,30 @@ func (s *serializerImpl) serializeStruct(
 	return nil
 }
 
-func (s *serializerImpl) serializeInterface(
-	value reflect.Value,
-	writer io.Writer,
-) error {
-	fmt.Fprintf(writer, "{\"value\":")
-	err := s.serializeItem(value.Elem(), writer, false)
-	if err != nil {
-		return nil
-	}
-	fmt.Fprintf(writer, ", \"type\": \"%s\", \"isInterface\": true}",
-		value.Type())
-	return nil
-}
-
 func (s *serializerImpl) serializePtr(
 	value reflect.Value,
 	writer io.Writer,
 ) error {
 	s.toSerializeInDict(value)
 	fmt.Fprint(writer, value.Pointer())
+	return nil
+}
+
+func (s *serializerImpl) serializeSlice(
+	value reflect.Value,
+	writer io.Writer,
+) error {
+	fmt.Fprint(writer, "[")
+	for i := 0; i < value.Len(); i++ {
+		if i > 0 {
+			fmt.Fprint(writer, ",")
+		}
+		err := s.serializeItem(value.Index(i), writer, false)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Fprint(writer, "]")
 	return nil
 }
 
@@ -144,9 +157,9 @@ func (s *serializerImpl) toSerializeInDict(value reflect.Value) {
 	s.serializedPtr[value.Pointer()] = true
 }
 
-func (s *serializerImpl) serializeDict(w io.Writer) {
+func (s *serializerImpl) serializeDict(w io.Writer) error {
 	if len(s.dictToSerialize) == 0 {
-		return
+		return nil
 	}
 
 	fmt.Fprintf(w, `,"dict":{`)
@@ -158,9 +171,13 @@ func (s *serializerImpl) serializeDict(w io.Writer) {
 			fmt.Fprint(w, `,`)
 		}
 		fmt.Fprintf(w, `"%d":`, v.ptr)
-		s.serializeItem(v.value, w, false)
+		err := s.serializeItem(v.value, w, false)
+		if err != nil {
+			return err
+		}
 		count++
 	}
 
 	fmt.Fprintf(w, "}")
+	return nil
 }
