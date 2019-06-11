@@ -49,11 +49,6 @@ func (s *serializerImpl) serializeItem(
 		value = value.Elem()
 	}
 
-	if layer > s.maxLayer {
-		fmt.Fprintf(writer, "{}")
-		return nil
-	}
-
 	fmt.Fprintf(writer, `{"value":`)
 	switch value.Kind() {
 	case reflect.Invalid:
@@ -77,16 +72,28 @@ func (s *serializerImpl) serializeItem(
 	case reflect.String:
 		fmt.Fprintf(writer, "\"%s\"", value.String())
 	case reflect.Struct:
+		if layer > s.maxLayer {
+			fmt.Fprint(writer, "{}")
+			return nil
+		}
 		err := s.serializeStruct(value, writer, layer+1)
 		if err != nil {
 			return err
 		}
 	case reflect.Slice, reflect.Array, reflect.Chan:
+		if layer > s.maxLayer {
+			fmt.Fprint(writer, "[]")
+			return nil
+		}
 		err := s.serializeSlice(value, writer, layer+1)
 		if err != nil {
 			return err
 		}
 	case reflect.Map:
+		if layer > s.maxLayer {
+			fmt.Fprint(writer, "[]")
+			return nil
+		}
 		err := s.serializeMap(value, writer, layer+1)
 		if err != nil {
 			return err
@@ -225,6 +232,9 @@ func (s *serializerImpl) serializeDict(w io.Writer) error {
 		}
 		fmt.Fprintf(w, `"%d":`, v.ptr)
 		err := s.serializeItem(v.value, w, false, 0)
+		if v.value.Kind() != reflect.Invalid {
+			fmt.Printf("Serialized %s, in dict %d\n", v.value.Type(), len(s.dictToSerialize))
+		}
 		if err != nil {
 			return err
 		}

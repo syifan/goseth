@@ -23,7 +23,7 @@ function renderItem(item, $canvas) {
         return
     }
 
-    $itemDom = $('<div><div>')
+    const $itemDom = $('<div><div>')
     $canvas.html($itemDom)
     switch (item.type) {
         case "int":
@@ -44,10 +44,10 @@ function renderItem(item, $canvas) {
             $ul = $('<ul></ul>')
             $itemDom.append($ul)
             for (let key in item.value) {
-                $entryDom = $('<li></li>')
+                const $entryDom = $('<li></li>')
                 $ul.append($entryDom)
-                $entryDomKey = $(`<div>${key}</div>`)
-                $entryDomDiv = $('<div></div>')
+                const $entryDomKey = $(`<div>${key}</div>`)
+                const $entryDomDiv = $('<div></div>')
                 $entryDom.append($entryDomKey)
                 $entryDom.append($entryDomDiv)
                 $entryDomKey.click(() => {
