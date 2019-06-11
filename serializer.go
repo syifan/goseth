@@ -20,17 +20,19 @@ type dictEntry struct {
 type serializerImpl struct {
 	dictToSerialize []dictEntry
 	serializedPtr   map[uintptr]bool
+	maxLayer        int
 }
 
 func (s serializerImpl) Serialize(
 	item interface{},
 	writer io.Writer,
 ) error {
+	s.maxLayer = 1
 	s.dictToSerialize = nil
 	s.serializedPtr = make(map[uintptr]bool)
 
 	value := reflect.ValueOf(item)
-	err := s.serializeItem(value, writer, true)
+	err := s.serializeItem(value, writer, true, 0)
 	if err != nil {
 		return err
 	}
@@ -41,9 +43,15 @@ func (s *serializerImpl) serializeItem(
 	value reflect.Value,
 	writer io.Writer,
 	isRoot bool,
+	layer int,
 ) error {
 	if value.Kind() == reflect.Interface {
 		value = value.Elem()
+	}
+
+	if layer > s.maxLayer {
+		fmt.Fprintf(writer, "{}")
+		return nil
 	}
 
 	fmt.Fprintf(writer, `{"value":`)
@@ -67,19 +75,19 @@ func (s *serializerImpl) serializeItem(
 	case reflect.Bool:
 		fmt.Fprintf(writer, "%t", value.Bool())
 	case reflect.String:
-		fmt.Fprintf(writer, "%s", value.String())
+		fmt.Fprintf(writer, "\"%s\"", value.String())
 	case reflect.Struct:
-		err := s.serializeStruct(value, writer)
+		err := s.serializeStruct(value, writer, layer+1)
 		if err != nil {
 			return err
 		}
 	case reflect.Slice, reflect.Array, reflect.Chan:
-		err := s.serializeSlice(value, writer)
+		err := s.serializeSlice(value, writer, layer+1)
 		if err != nil {
 			return err
 		}
 	case reflect.Map:
-		err := s.serializeMap(value, writer)
+		err := s.serializeMap(value, writer, layer+1)
 		if err != nil {
 			return err
 		}
@@ -113,6 +121,7 @@ func (s *serializerImpl) serializeItem(
 func (s *serializerImpl) serializeStruct(
 	value reflect.Value,
 	writer io.Writer,
+	layer int,
 ) error {
 	fmt.Fprint(writer, "{")
 
@@ -121,7 +130,7 @@ func (s *serializerImpl) serializeStruct(
 			fmt.Fprint(writer, ",")
 		}
 		fmt.Fprintf(writer, `"%s":`, value.Type().Field(i).Name)
-		err := s.serializeItem(value.Field(i), writer, false)
+		err := s.serializeItem(value.Field(i), writer, false, layer)
 		if err != nil {
 			return err
 		}
@@ -144,13 +153,14 @@ func (s *serializerImpl) serializePtr(
 func (s *serializerImpl) serializeSlice(
 	value reflect.Value,
 	writer io.Writer,
+	layer int,
 ) error {
 	fmt.Fprint(writer, "[")
 	for i := 0; i < value.Len(); i++ {
 		if i > 0 {
 			fmt.Fprint(writer, ",")
 		}
-		err := s.serializeItem(value.Index(i), writer, false)
+		err := s.serializeItem(value.Index(i), writer, false, layer)
 		if err != nil {
 			return err
 		}
@@ -162,6 +172,7 @@ func (s *serializerImpl) serializeSlice(
 func (s *serializerImpl) serializeMap(
 	value reflect.Value,
 	writer io.Writer,
+	layer int,
 ) error {
 	fmt.Fprint(writer, "[")
 	i := 0
@@ -171,13 +182,13 @@ func (s *serializerImpl) serializeMap(
 		}
 		i++
 		fmt.Fprintf(writer, "{\"key\": ")
-		err := s.serializeItem(key, writer, false)
+		err := s.serializeItem(key, writer, false, layer)
 		if err != nil {
 			return err
 		}
 
 		fmt.Fprintf(writer, ", \"value\":")
-		err = s.serializeItem(value.MapIndex(key), writer, false)
+		err = s.serializeItem(value.MapIndex(key), writer, false, layer)
 		if err != nil {
 			return err
 		}
@@ -213,7 +224,7 @@ func (s *serializerImpl) serializeDict(w io.Writer) error {
 			fmt.Fprint(w, `,`)
 		}
 		fmt.Fprintf(w, `"%d":`, v.ptr)
-		err := s.serializeItem(v.value, w, false)
+		err := s.serializeItem(v.value, w, false, 0)
 		if err != nil {
 			return err
 		}
