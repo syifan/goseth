@@ -7,240 +7,132 @@ import (
 	"reflect"
 )
 
-// MakeSerializer creates a default serializer
-func MakeSerializer() Serializer {
-	return serializerImpl{}
+type rootObj struct {
+	root *elem
+	dict map[uint64]dictEntry
+}
+
+type elem struct {
+	value    interface{}
+	itemType string
+	itemKind int
 }
 
 type dictEntry struct {
-	ptr   uintptr
+	ptr   uint64
 	value reflect.Value
 }
 
 type serializerImpl struct {
-	dictToSerialize []dictEntry
+	dict            map[uintptr]interface{}
 	serializedPtr   map[uintptr]bool
+	dictToSerialize []uintptr
 	maxLayer        int
 }
 
-func (s serializerImpl) Serialize(
+// MakeSerializer creates a default serializer
+func MakeSerializer() Serializer {
+	return &serializerImpl{
+		dict: make(map[uintptr]interface{}),
+	}
+}
+
+func (s *serializerImpl) Serialize(
 	item interface{},
 	writer io.Writer,
 ) error {
-	s.maxLayer = 1
-	s.dictToSerialize = nil
 	s.serializedPtr = make(map[uintptr]bool)
-
-	value := reflect.ValueOf(item)
-	err := s.serializeItem(value, writer, true, 0)
+	s.dictToSerialize = nil
+	rootPtr := s.addToDict(item)
+	err := s.serializeToWriter(writer, rootPtr)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *serializerImpl) serializeItem(
-	value reflect.Value,
+func (s *serializerImpl) addToDict(item interface{}) uintptr {
+	ptr := s.getPtr(item)
+	if _, ok := s.dict[ptr]; ok {
+		return ptr
+	}
+	s.dict[ptr] = item
+	return ptr
+}
+
+func (s *serializerImpl) getPtr(item interface{}) uintptr {
+	return reflect.ValueOf(&item).Pointer()
+}
+
+func (s *serializerImpl) serializeToWriter(
 	writer io.Writer,
-	isRoot bool,
-	layer int,
+	rootPtr uintptr,
 ) error {
-	if value.Kind() == reflect.Interface {
-		value = value.Elem()
+	fmt.Fprintf(writer, `{"root":%d,"dict":`, rootPtr)
+	s.addToDictToSerialize(rootPtr)
+	err := s.serializeDict(writer)
+	if err != nil {
+		return err
 	}
-
-	fmt.Fprintf(writer, `{"value":`)
-	switch value.Kind() {
-	case reflect.Invalid:
-		fmt.Fprintf(writer, "\"null\"")
-	case reflect.Int,
-		reflect.Int8,
-		reflect.Int16,
-		reflect.Int32,
-		reflect.Int64:
-		fmt.Fprintf(writer, "%d", value.Int())
-	case reflect.Uint,
-		reflect.Uint8,
-		reflect.Uint16,
-		reflect.Uint32,
-		reflect.Uint64:
-		fmt.Fprintf(writer, "%d", value.Uint())
-	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(writer, "%.15f", value.Float())
-	case reflect.Bool:
-		fmt.Fprintf(writer, "%t", value.Bool())
-	case reflect.String:
-		fmt.Fprintf(writer, "\"%s\"", value.String())
-	case reflect.Struct:
-		if layer > s.maxLayer {
-			fmt.Fprint(writer, "{}")
-			return nil
-		}
-		err := s.serializeStruct(value, writer, layer+1)
-		if err != nil {
-			return err
-		}
-	case reflect.Slice, reflect.Array, reflect.Chan:
-		if layer > s.maxLayer {
-			fmt.Fprint(writer, "[]")
-			return nil
-		}
-		err := s.serializeSlice(value, writer, layer+1)
-		if err != nil {
-			return err
-		}
-	case reflect.Map:
-		if layer > s.maxLayer {
-			fmt.Fprint(writer, "[]")
-			return nil
-		}
-		err := s.serializeMap(value, writer, layer+1)
-		if err != nil {
-			return err
-		}
-	case reflect.Ptr:
-		err := s.serializePtr(value, writer)
-		if err != nil {
-			return err
-		}
-
-	default:
-		return errors.New(
-			"type " + value.Kind().String() + " is not supported")
-	}
-
-	if value.Kind() != reflect.Invalid {
-		fmt.Fprintf(writer, `,"type":"%s"`, value.Type())
-	}
-
-	if isRoot {
-		err := s.serializeDict(writer)
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Fprintf(writer, "}")
-
+	fmt.Fprintf(writer, `}`)
 	return nil
 }
 
-func (s *serializerImpl) serializeStruct(
-	value reflect.Value,
-	writer io.Writer,
-	layer int,
-) error {
-	fmt.Fprint(writer, "{")
-
-	for i := 0; i < value.NumField(); i++ {
-		if i > 0 {
-			fmt.Fprint(writer, ",")
-		}
-		fmt.Fprintf(writer, `"%s":`, value.Type().Field(i).Name)
-		err := s.serializeItem(value.Field(i), writer, false, layer)
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Fprint(writer, "}")
-
-	return nil
-}
-
-func (s *serializerImpl) serializePtr(
-	value reflect.Value,
-	writer io.Writer,
-) error {
-	s.toSerializeInDict(value)
-	fmt.Fprint(writer, value.Pointer())
-	return nil
-}
-
-func (s *serializerImpl) serializeSlice(
-	value reflect.Value,
-	writer io.Writer,
-	layer int,
-) error {
-	fmt.Fprint(writer, "[")
-	for i := 0; i < value.Len(); i++ {
-		if i > 0 {
-			fmt.Fprint(writer, ",")
-		}
-		err := s.serializeItem(value.Index(i), writer, false, layer)
-		if err != nil {
-			return err
-		}
-	}
-	fmt.Fprint(writer, "]")
-	return nil
-}
-
-func (s *serializerImpl) serializeMap(
-	value reflect.Value,
-	writer io.Writer,
-	layer int,
-) error {
-	fmt.Fprint(writer, "[")
-	i := 0
-	for _, key := range value.MapKeys() {
-		if i > 0 {
-			fmt.Fprint(writer, ",")
-		}
-		i++
-		fmt.Fprintf(writer, "{\"key\": ")
-		err := s.serializeItem(key, writer, false, layer)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(writer, ", \"value\":")
-		err = s.serializeItem(value.MapIndex(key), writer, false, layer)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(writer, "}")
-	}
-	fmt.Fprint(writer, "]")
-	return nil
-}
-
-func (s *serializerImpl) toSerializeInDict(value reflect.Value) {
-	if _, ok := s.serializedPtr[value.Pointer()]; ok {
+func (s *serializerImpl) addToDictToSerialize(ptr uintptr) {
+	if _, ok := s.serializedPtr[ptr]; ok {
 		return
 	}
 
-	s.dictToSerialize = append(s.dictToSerialize,
-		dictEntry{value.Pointer(), value.Elem()},
-	)
-	s.serializedPtr[value.Pointer()] = true
+	s.serializedPtr[ptr] = true
+	s.dictToSerialize = append(s.dictToSerialize, ptr)
 }
 
-func (s *serializerImpl) serializeDict(w io.Writer) error {
-	if len(s.dictToSerialize) == 0 {
-		return nil
-	}
+func (s *serializerImpl) serializeDict(
+	writer io.Writer,
+) error {
+	fmt.Fprintf(writer, "{")
 
-	fmt.Fprintf(w, `,"dict":{`)
-	count := 0
+	var i uint64
 	for len(s.dictToSerialize) > 0 {
-		v := s.dictToSerialize[0]
+		ptr := s.dictToSerialize[0]
 		s.dictToSerialize = s.dictToSerialize[1:]
-		if count > 0 {
-			fmt.Fprint(w, `,`)
+
+		if i > 0 {
+			fmt.Fprintf(writer, `,`)
 		}
-		fmt.Fprintf(w, `"%d":`, v.ptr)
-		err := s.serializeItem(v.value, w, false, 0)
-		if v.value.Kind() != reflect.Invalid {
-			fmt.Printf("Serialized %s, in dict %d\n", v.value.Type(), len(s.dictToSerialize))
-		}
+		fmt.Fprintf(writer, `"%d":`, ptr)
+
+		err := s.serializeItem(writer, ptr)
 		if err != nil {
 			return err
 		}
-		count++
+		i++
 	}
 
-	fmt.Fprintf(w, "}")
+	fmt.Fprintf(writer, "}")
+	return nil
+}
+
+func (s *serializerImpl) serializeItem(
+	writer io.Writer,
+	ptr uintptr,
+) error {
+	item := s.dict[ptr]
+	value := reflect.ValueOf(item)
+	switch value.Kind() {
+	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d,"p":%d}`,
+			value.Int(), value.Type(), value.Kind(), ptr)
+	case reflect.Float32, reflect.Float64:
+		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d,"p":%d}`,
+			value.Float(), value.Type(), value.Kind(), ptr)
+	case reflect.Bool:
+		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d,"p":%d}`,
+			value.Bool(), value.Type(), value.Kind(), ptr)
+
+	default:
+		return errors.New(
+			"type " + value.Kind().String() + " is not supported.")
+	}
 	return nil
 }
