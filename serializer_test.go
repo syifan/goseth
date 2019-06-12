@@ -8,7 +8,7 @@ import (
 	. "github.com/syifan/goseth"
 )
 
-var idExp = `[0-9]+@[a-zA-Z_0-9\./]+`
+var idExp = `[0-9]+@[a-zA-Z_0-9\./\[\]]+`
 
 var _ = Describe("Serializer Impl", func() {
 	var (
@@ -79,6 +79,16 @@ var _ = Describe("Serializer Impl", func() {
 		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"another":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct2","k":25},"` + idExp + `":{"v":{"another":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct2","k":25}}}`
 
 		err := s.Serialize(&s1, &sb)
+
+		Expect(err).To(BeNil())
+		Expect(sb.String()).To(MatchRegexp(re))
+	})
+
+	It("should serialize slice", func() {
+		d := []int{1, 2, 3}
+		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":["` + idExp + `","` + idExp + `","` + idExp + `"],"` + idExp + `":{"v":1,"t":"int","k":2},"` + idExp + `":{"v":2,"t":"int","k":2},"` + idExp + `":{"v":3,"t":"int","k":2}}}`
+
+		err := s.Serialize(&d, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(re))

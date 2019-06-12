@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 )
 
 type serializerImpl struct {
@@ -40,11 +41,18 @@ func (s *serializerImpl) Serialize(
 }
 
 func (s *serializerImpl) typeString(value reflect.Value) string {
-	if value.Type().PkgPath() == "" {
-		return value.Type().Name()
+	name := value.Type().String()
+	pktPath := value.Type().PkgPath()
+
+	if pktPath == "" {
+		return name
 	}
 
-	return fmt.Sprintf("%s.%s", value.Type().PkgPath(), value.Type().Name())
+	tokens := strings.Split(pktPath, "/")
+	tokens = tokens[0 : len(tokens)-1]
+	pktPath = strings.Join(tokens, "/")
+
+	return fmt.Sprintf("%s/%s", pktPath, name)
 }
 
 func (s *serializerImpl) itemID(
@@ -129,9 +137,27 @@ func (s *serializerImpl) serializeItem(
 	case reflect.Bool:
 		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d}`,
 			value.Bool(), s.typeString(value), value.Kind())
-	case reflect.Ptr:
-		itemID := s.itemID(value.Pointer(), value.Elem())
-		s.serializeItem(writer, itemID)
+	case reflect.Slice:
+		fmt.Fprintf(writer, "[")
+		for i := 0; i < value.Len(); i++ {
+			f := value.Index(i)
+			var itemID string
+			if f.Kind() == reflect.Ptr {
+				fPtr := f.Pointer()
+				itemID = s.itemID(fPtr, f.Elem())
+				s.addToDict(itemID, f.Elem())
+			} else {
+				fPtr := f.Addr().Pointer()
+				itemID = s.itemID(fPtr, f)
+				s.addToDict(itemID, f)
+			}
+			s.addToDictToSerialize(itemID)
+			if i > 0 {
+				fmt.Fprint(writer, ",")
+			}
+			fmt.Fprintf(writer, `"%s"`, itemID)
+		}
+		fmt.Fprintf(writer, "]")
 	case reflect.Struct:
 		fmt.Fprintf(writer, `{"v":{`)
 		for i := 0; i < value.NumField(); i++ {
