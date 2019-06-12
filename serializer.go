@@ -56,15 +56,34 @@ func (s *serializerImpl) itemID(
 	ptr uintptr,
 	value reflect.Value,
 ) string {
+	if s.isZero(value) {
+		return "0"
+	}
 	id := fmt.Sprintf("%d@%s", ptr, s.typeString(value))
 	return id
+}
+
+func (s *serializerImpl) isZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Invalid:
+		return true
+	case reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
 }
 
 func (s *serializerImpl) addToDict(
 	value reflect.Value,
 ) string {
 	v := s.strip(value)
-	ptr := v.Addr().Pointer()
+
+	var ptr uintptr
+	if !v.CanAddr() {
+		ptr = 0
+	} else {
+		ptr = v.UnsafeAddr()
+	}
 	id := s.itemID(ptr, v)
 
 	if _, ok := s.dict[id]; ok {
@@ -137,6 +156,11 @@ func (s *serializerImpl) serializeItem(
 	writer io.Writer,
 	id string,
 ) error {
+	if id == "0" {
+		fmt.Fprintf(writer, `{"v":0}`)
+		return nil
+	}
+
 	value := s.dict[id]
 	switch value.Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:

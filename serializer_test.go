@@ -63,7 +63,8 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize simple struct", func() {
 		a := sampleStruct1{}
-		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":false,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}`
+		a.Field1 = true
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":true,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}`
 
 		err := s.Serialize(&a, &sb)
 
@@ -105,4 +106,15 @@ var _ = Describe("Serializer Impl", func() {
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(re))
 	})
+
+	It("should serialize struct in struct", func() {
+		b := sampelStruct3{s: sampleStruct1{Field1: true}}
+		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":false,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}}`
+
+		err := s.Serialize(&b, &sb)
+
+		Expect(err).To(BeNil())
+		Expect(sb.String()).To(MatchRegexp(re))
+	})
+
 })

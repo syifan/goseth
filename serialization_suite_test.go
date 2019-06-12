@@ -24,6 +24,10 @@ type sampleStruct2 struct {
 	another *sampleStruct2
 }
 
+type sampelStruct3 struct {
+	s sampleStruct1
+}
+
 func init() {
 	reg := goseth.GetTypeRegistry()
 	reg.Register((*sampleStruct1)(nil))
