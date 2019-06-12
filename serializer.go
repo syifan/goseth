@@ -24,16 +24,16 @@ type dictEntry struct {
 }
 
 type serializerImpl struct {
-	dict            map[uintptr]reflect.Value
-	serializedPtr   map[uintptr]bool
-	dictToSerialize []uintptr
+	dict            map[string]reflect.Value
+	serializedPtr   map[string]bool
+	dictToSerialize []string
 	maxLayer        int
 }
 
 // MakeSerializer creates a default serializer
 func MakeSerializer() Serializer {
 	return &serializerImpl{
-		dict: make(map[uintptr]reflect.Value),
+		dict: make(map[string]reflect.Value),
 	}
 }
 
@@ -41,35 +41,44 @@ func (s *serializerImpl) Serialize(
 	item interface{},
 	writer io.Writer,
 ) error {
-	s.serializedPtr = make(map[uintptr]bool)
+	s.serializedPtr = make(map[string]bool)
 	s.dictToSerialize = nil
 	value := reflect.ValueOf(item)
 	ptr := value.Pointer()
 	elem := value.Elem()
-	s.addToDict(ptr, elem)
-	err := s.serializeToWriter(writer, ptr)
+	id := s.itemID(ptr, elem)
+	s.addToDict(id, elem)
+	err := s.serializeToWriter(writer, id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *serializerImpl) addToDict(
+func (s *serializerImpl) itemID(
 	ptr uintptr,
 	value reflect.Value,
+) string {
+	id := fmt.Sprintf("%d@%s.%s", ptr, value.Type().PkgPath(), value.Type())
+	return id
+}
+
+func (s *serializerImpl) addToDict(
+	id string,
+	value reflect.Value,
 ) {
-	if _, ok := s.dict[ptr]; ok {
+	if _, ok := s.dict[id]; ok {
 		return
 	}
-	s.dict[ptr] = value
+	s.dict[id] = value
 }
 
 func (s *serializerImpl) serializeToWriter(
 	writer io.Writer,
-	rootPtr uintptr,
+	id string,
 ) error {
-	fmt.Fprintf(writer, `{"root":%d,"dict":`, rootPtr)
-	s.addToDictToSerialize(rootPtr)
+	fmt.Fprintf(writer, `{"root":"%s","dict":`, id)
+	s.addToDictToSerialize(id)
 	err := s.serializeDict(writer)
 	if err != nil {
 		return err
@@ -78,13 +87,13 @@ func (s *serializerImpl) serializeToWriter(
 	return nil
 }
 
-func (s *serializerImpl) addToDictToSerialize(ptr uintptr) {
-	if _, ok := s.serializedPtr[ptr]; ok {
+func (s *serializerImpl) addToDictToSerialize(id string) {
+	if _, ok := s.serializedPtr[id]; ok {
 		return
 	}
 
-	s.serializedPtr[ptr] = true
-	s.dictToSerialize = append(s.dictToSerialize, ptr)
+	s.serializedPtr[id] = true
+	s.dictToSerialize = append(s.dictToSerialize, id)
 }
 
 func (s *serializerImpl) serializeDict(
@@ -94,15 +103,15 @@ func (s *serializerImpl) serializeDict(
 
 	var i uint64
 	for len(s.dictToSerialize) > 0 {
-		ptr := s.dictToSerialize[0]
+		itemID := s.dictToSerialize[0]
 		s.dictToSerialize = s.dictToSerialize[1:]
 
 		if i > 0 {
 			fmt.Fprintf(writer, `,`)
 		}
-		fmt.Fprintf(writer, `"%d":`, ptr)
+		fmt.Fprintf(writer, `"%s":`, itemID)
 
-		err := s.serializeItem(writer, ptr)
+		err := s.serializeItem(writer, itemID)
 		if err != nil {
 			return err
 		}
@@ -115,42 +124,45 @@ func (s *serializerImpl) serializeDict(
 
 func (s *serializerImpl) serializeItem(
 	writer io.Writer,
-	ptr uintptr,
+	id string,
 ) error {
-	value := s.dict[ptr]
+	value := s.dict[id]
 	switch value.Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d,"p":%d}`,
-			value.Int(), value.Type(), value.Kind(), ptr)
+		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d,"p":"%s"}`,
+			value.Int(), value.Type(), value.Kind(), id)
 	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d,"p":%d}`,
-			value.Float(), value.Type(), value.Kind(), ptr)
+		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d,"p":"%s"}`,
+			value.Float(), value.Type(), value.Kind(), id)
 	case reflect.Bool:
-		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d,"p":%d}`,
-			value.Bool(), value.Type(), value.Kind(), ptr)
+		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d,"p":"%s"}`,
+			value.Bool(), value.Type(), value.Kind(), id)
 	case reflect.Ptr:
-		s.serializeItem(writer, value.Pointer())
+		itemID := s.itemID(value.Pointer(), value.Elem())
+		s.serializeItem(writer, itemID)
 	case reflect.Struct:
 		fmt.Fprintf(writer, `{"v":{`)
 		for i := 0; i < value.NumField(); i++ {
 			f := value.Field(i)
-			var fPtr uintptr
+			var itemID string
 			if f.Kind() == reflect.Ptr {
-				fPtr = f.Pointer()
+				fPtr := f.Pointer()
+				itemID = s.itemID(fPtr, f.Elem())
 			} else {
-				fPtr = f.Addr().Pointer()
+				fPtr := f.Addr().Pointer()
+				itemID = s.itemID(fPtr, f)
 			}
-			s.addToDict(fPtr, f)
-			s.addToDictToSerialize(fPtr)
+			s.addToDict(itemID, f)
+			s.addToDictToSerialize(itemID)
 			if i > 0 {
 				fmt.Fprint(writer, ",")
 			}
 			fieldName := value.Type().Field(i).Name
-			fmt.Fprintf(writer, `"%s":%d`, fieldName, fPtr)
-			fmt.Println("processing field ", i, f, fPtr, fieldName, f.Type(), f.Kind())
+			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, itemID)
+			fmt.Println("processing field ", i, f, itemID, fieldName, f.Type(), f.Kind())
 		}
-		fmt.Fprintf(writer, `},"t":"%s","k":%d,"p":%d}`,
-			value.Type(), value.Kind(), ptr)
+		fmt.Fprintf(writer, `},"t":"%s","k":%d,"p":"%s"}`,
+			value.Type(), value.Kind(), id)
 
 	default:
 		return errors.New(
