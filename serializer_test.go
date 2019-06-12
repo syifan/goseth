@@ -23,7 +23,7 @@ var _ = Describe("Serializer Impl", func() {
 		a := int(6)
 		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":6,"t":"int","k":2,"p":[0-9]+}}}`
 
-		err := s.Serialize(a, &sb)
+		err := s.Serialize(&a, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(exp))
@@ -33,7 +33,7 @@ var _ = Describe("Serializer Impl", func() {
 		a := int32(6)
 		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":6,"t":"int32","k":5,"p":[0-9]+}}}`
 
-		err := s.Serialize(a, &sb)
+		err := s.Serialize(&a, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(exp))
@@ -43,7 +43,7 @@ var _ = Describe("Serializer Impl", func() {
 		a := float32(0.02)
 		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":[0-9\.]+,"t":"float32","k":13,"p":[0-9]+}}}`
 
-		err := s.Serialize(a, &sb)
+		err := s.Serialize(&a, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(exp))
@@ -53,21 +53,21 @@ var _ = Describe("Serializer Impl", func() {
 		a := true
 		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":true,"t":"bool","k":1,"p":[0-9]+}}}`
 
-		err := s.Serialize(a, &sb)
+		err := s.Serialize(&a, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(exp))
 	})
 
-	// It("should serialize simple struct", func() {
-	// 	a := sampleStruct1{}
-	// 	exp := `{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"goseth_test.sampleStruct1"}`
+	It("should serialize simple struct", func() {
+		a := sampleStruct1{}
+		exp := `{"root":[0-9]+,dict:{"[0-9]+":{"v":{Field1":[0-9]+,"field2":[0-9]+},t:"github.com/syifan/goseth_test.sampleStruct1","k":25,ptr:[0-9]+},"[0-9]+":{"v":false,"t":"bool","k":1,"p":[0-9]+},"[0-9]+":{"v":0,"t":"int","k":2,"p":[0-9]+}}`
 
-	// 	err := s.Serialize(a, &sb)
+		err := s.Serialize(&a, &sb)
 
-	// 	Expect(err).To(BeNil())
-	// 	Expect(sb.String()).To(Equal(exp))
-	// })
+		Expect(err).To(BeNil())
+		Expect(sb.String()).To(MatchRegexp(exp))
+	})
 
 	// It("should serialize pointer", func() {
 	// 	a := &sampleStruct1{}

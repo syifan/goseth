@@ -24,7 +24,7 @@ type dictEntry struct {
 }
 
 type serializerImpl struct {
-	dict            map[uintptr]interface{}
+	dict            map[uintptr]reflect.Value
 	serializedPtr   map[uintptr]bool
 	dictToSerialize []uintptr
 	maxLayer        int
@@ -33,7 +33,7 @@ type serializerImpl struct {
 // MakeSerializer creates a default serializer
 func MakeSerializer() Serializer {
 	return &serializerImpl{
-		dict: make(map[uintptr]interface{}),
+		dict: make(map[uintptr]reflect.Value),
 	}
 }
 
@@ -43,25 +43,25 @@ func (s *serializerImpl) Serialize(
 ) error {
 	s.serializedPtr = make(map[uintptr]bool)
 	s.dictToSerialize = nil
-	rootPtr := s.addToDict(item)
-	err := s.serializeToWriter(writer, rootPtr)
+	value := reflect.ValueOf(item)
+	ptr := value.Pointer()
+	elem := value.Elem()
+	s.addToDict(ptr, elem)
+	err := s.serializeToWriter(writer, ptr)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *serializerImpl) addToDict(item interface{}) uintptr {
-	ptr := s.getPtr(item)
+func (s *serializerImpl) addToDict(
+	ptr uintptr,
+	value reflect.Value,
+) {
 	if _, ok := s.dict[ptr]; ok {
-		return ptr
+		return
 	}
-	s.dict[ptr] = item
-	return ptr
-}
-
-func (s *serializerImpl) getPtr(item interface{}) uintptr {
-	return reflect.ValueOf(&item).Pointer()
+	s.dict[ptr] = value
 }
 
 func (s *serializerImpl) serializeToWriter(
@@ -117,8 +117,7 @@ func (s *serializerImpl) serializeItem(
 	writer io.Writer,
 	ptr uintptr,
 ) error {
-	item := s.dict[ptr]
-	value := reflect.ValueOf(item)
+	value := s.dict[ptr]
 	switch value.Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d,"p":%d}`,
@@ -129,10 +128,33 @@ func (s *serializerImpl) serializeItem(
 	case reflect.Bool:
 		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d,"p":%d}`,
 			value.Bool(), value.Type(), value.Kind(), ptr)
+	case reflect.Ptr:
+		s.serializeItem(writer, value.Pointer())
+	case reflect.Struct:
+		fmt.Fprintf(writer, `{"v":{`)
+		for i := 0; i < value.NumField(); i++ {
+			f := value.Field(i)
+			var fPtr uintptr
+			if f.Kind() == reflect.Ptr {
+				fPtr = f.Pointer()
+			} else {
+				fPtr = f.Addr().Pointer()
+			}
+			s.addToDict(fPtr, f)
+			s.addToDictToSerialize(fPtr)
+			if i > 0 {
+				fmt.Fprint(writer, ",")
+			}
+			fieldName := value.Type().Field(i).Name
+			fmt.Fprintf(writer, `"%s":%d`, fieldName, fPtr)
+			fmt.Println("processing field ", i, f, fPtr, fieldName, f.Type(), f.Kind())
+		}
+		fmt.Fprintf(writer, `},"t":"%s","k":%d,"p":%d}`,
+			value.Type(), value.Kind(), ptr)
 
 	default:
 		return errors.New(
-			"type " + value.Kind().String() + " is not supported.")
+			"type kind " + value.Kind().String() + " is not supported.")
 	}
 	return nil
 }
