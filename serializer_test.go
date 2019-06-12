@@ -107,9 +107,9 @@ var _ = Describe("Serializer Impl", func() {
 		Expect(sb.String()).To(MatchRegexp(re))
 	})
 
-	It("should serialize struct in struct", func() {
+	It("should serialize nested structs", func() {
 		b := sampelStruct3{s: sampleStruct1{Field1: true}}
-		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":false,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}}`
+		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"s":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampelStruct3","k":25},"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":true,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}}`
 
 		err := s.Serialize(&b, &sb)
 

@@ -9,16 +9,19 @@ import (
 )
 
 type serializerImpl struct {
-	dict            map[string]reflect.Value
-	serializedPtr   map[string]bool
-	dictToSerialize []string
-	maxLayer        int
+	dict             map[string]reflect.Value
+	serializedPtr    map[string]bool
+	dictToSerialize  []string
+	idToDepthMapping map[string]int
+	maxLayer         int
 }
 
 // MakeSerializer creates a default serializer
 func MakeSerializer() Serializer {
 	return &serializerImpl{
-		dict: make(map[string]reflect.Value),
+		dict:             make(map[string]reflect.Value),
+		serializedPtr:    make(map[string]bool),
+		idToDepthMapping: make(map[string]int),
 	}
 }
 
@@ -30,7 +33,7 @@ func (s *serializerImpl) Serialize(
 	s.dictToSerialize = nil
 	value := reflect.ValueOf(item)
 	id := s.addToDict(value)
-	err := s.serializeToWriter(writer, id)
+	err := s.serializeToWriter(writer, id, -1)
 	if err != nil {
 		return err
 	}
@@ -106,10 +109,11 @@ func (s *serializerImpl) strip(v reflect.Value) reflect.Value {
 func (s *serializerImpl) serializeToWriter(
 	writer io.Writer,
 	id string,
+	maxDepth int,
 ) error {
 	fmt.Fprintf(writer, `{"root":"%s","dict":`, id)
-	s.addToDictToSerialize(id)
-	err := s.serializeDict(writer)
+	s.addToDictToSerialize(id, 0)
+	err := s.serializeDict(writer, maxDepth)
 	if err != nil {
 		return err
 	}
@@ -117,17 +121,19 @@ func (s *serializerImpl) serializeToWriter(
 	return nil
 }
 
-func (s *serializerImpl) addToDictToSerialize(id string) {
+func (s *serializerImpl) addToDictToSerialize(id string, depth int) {
 	if _, ok := s.serializedPtr[id]; ok {
 		return
 	}
 
 	s.serializedPtr[id] = true
+	s.idToDepthMapping[id] = depth
 	s.dictToSerialize = append(s.dictToSerialize, id)
 }
 
 func (s *serializerImpl) serializeDict(
 	writer io.Writer,
+	maxDepth int,
 ) error {
 	fmt.Fprintf(writer, "{")
 
@@ -141,7 +147,7 @@ func (s *serializerImpl) serializeDict(
 		}
 		fmt.Fprintf(writer, `"%s":`, itemID)
 
-		err := s.serializeItem(writer, itemID)
+		err := s.serializeItem(writer, itemID, maxDepth)
 		if err != nil {
 			return err
 		}
@@ -155,6 +161,7 @@ func (s *serializerImpl) serializeDict(
 func (s *serializerImpl) serializeItem(
 	writer io.Writer,
 	id string,
+	maxDepth int,
 ) error {
 	if id == "0" {
 		fmt.Fprintf(writer, `{"v":0}`)
@@ -162,6 +169,7 @@ func (s *serializerImpl) serializeItem(
 	}
 
 	value := s.dict[id]
+	currDepth := s.idToDepthMapping[id]
 	switch value.Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d}`,
@@ -177,7 +185,9 @@ func (s *serializerImpl) serializeItem(
 		for i := 0; i < value.Len(); i++ {
 			f := value.Index(i)
 			fID := s.addToDict(f)
-			s.addToDictToSerialize(fID)
+			if maxDepth < 0 || currDepth < maxDepth {
+				s.addToDictToSerialize(fID, currDepth+1)
+			}
 			if i > 0 {
 				fmt.Fprint(writer, ",")
 			}
@@ -189,7 +199,9 @@ func (s *serializerImpl) serializeItem(
 		for i := 0; i < value.NumField(); i++ {
 			f := value.Field(i)
 			fID := s.addToDict(f)
-			s.addToDictToSerialize(fID)
+			if maxDepth < 0 || currDepth < maxDepth {
+				s.addToDictToSerialize(fID, currDepth+1)
+			}
 			if i > 0 {
 				fmt.Fprint(writer, ",")
 			}
