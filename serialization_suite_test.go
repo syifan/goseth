@@ -13,6 +13,8 @@ func TestSerialization(t *testing.T) {
 	RunSpecs(t, "Seth Suite")
 }
 
+type sampleInterface interface{}
+
 type sampleStruct1 struct {
 	Field1 bool
 	field2 int

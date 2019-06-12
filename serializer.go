@@ -63,22 +63,25 @@ func (s *serializerImpl) itemID(
 func (s *serializerImpl) addToDict(
 	value reflect.Value,
 ) string {
-	var id string
-	var v reflect.Value
-	if value.Kind() == reflect.Ptr {
-		ptr := value.Pointer()
-		id = s.itemID(ptr, value.Elem())
-		v = value.Elem()
-	} else {
-		ptr := value.Addr().Pointer()
-		id = s.itemID(ptr, value)
-		v = value
-	}
+	v := s.strip(value)
+	ptr := v.Addr().Pointer()
+	id := s.itemID(ptr, v)
+
 	if _, ok := s.dict[id]; ok {
 		return id
 	}
 	s.dict[id] = v
 	return id
+}
+
+func (s *serializerImpl) strip(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Ptr,
+		reflect.Interface:
+		return s.strip(v.Elem())
+	default:
+		return v
+	}
 }
 
 func (s *serializerImpl) serializeToWriter(
