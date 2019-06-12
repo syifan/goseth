@@ -140,11 +140,12 @@ func (s *serializerImpl) serializeItem(
 			if f.Kind() == reflect.Ptr {
 				fPtr := f.Pointer()
 				itemID = s.itemID(fPtr, f.Elem())
+				s.addToDict(itemID, f.Elem())
 			} else {
 				fPtr := f.Addr().Pointer()
 				itemID = s.itemID(fPtr, f)
+				s.addToDict(itemID, f)
 			}
-			s.addToDict(itemID, f)
 			s.addToDictToSerialize(itemID)
 			if i > 0 {
 				fmt.Fprint(writer, ",")

@@ -71,26 +71,16 @@ var _ = Describe("Serializer Impl", func() {
 		Expect(sb.String()).To(MatchRegexp(exp))
 	})
 
-	// It("should serialize pointer", func() {
-	// 	a := &sampleStruct1{}
-	// 	re := `{"value":[0-9]+,"type":"\*goseth_test.sampleStruct1","dict":{"[0-9]+":{"value":{"Field1":{"value":false,"type":"bool"},"field2":{"value":0,"type":"int"}},"type":"goseth_test.sampleStruct1"}}}`
+	It("should serialize recursive data", func() {
+		s1 := sampleStruct2{}
+		s2 := sampleStruct2{}
+		s1.another = &s2
+		s2.another = &s1
+		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"another":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct2","k":25},"` + idExp + `":{"v":{"another":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct2","k":25}}}`
 
-	// 	err := s.Serialize(a, &sb)
+		err := s.Serialize(&s1, &sb)
 
-	// 	Expect(err).To(BeNil())
-	// 	Expect(sb.String()).To(MatchRegexp(re))
-	// })
-
-	// It("should serialize recursive data", func() {
-	// 	s1 := sampleStruct2{}
-	// 	s2 := sampleStruct2{}
-	// 	s1.another = &s2
-	// 	s2.another = &s1
-	// 	re := `{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2","dict":{"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2"},"[0-9]+":{"value":{"another":{"value":[0-9]+,"type":"\*goseth_test.sampleStruct2"}},"type":"goseth_test.sampleStruct2"}}}`
-
-	// 	err := s.Serialize(s1, &sb)
-
-	// 	Expect(err).To(BeNil())
-	// 	Expect(sb.String()).To(MatchRegexp(re))
-	// })
+		Expect(err).To(BeNil())
+		Expect(sb.String()).To(MatchRegexp(re))
+	})
 })
