@@ -29,10 +29,7 @@ func (s *serializerImpl) Serialize(
 	s.serializedPtr = make(map[string]bool)
 	s.dictToSerialize = nil
 	value := reflect.ValueOf(item)
-	ptr := value.Pointer()
-	elem := value.Elem()
-	id := s.itemID(ptr, elem)
-	s.addToDict(id, elem)
+	id := s.addToDict(value)
 	err := s.serializeToWriter(writer, id)
 	if err != nil {
 		return err
@@ -64,13 +61,24 @@ func (s *serializerImpl) itemID(
 }
 
 func (s *serializerImpl) addToDict(
-	id string,
 	value reflect.Value,
-) {
-	if _, ok := s.dict[id]; ok {
-		return
+) string {
+	var id string
+	var v reflect.Value
+	if value.Kind() == reflect.Ptr {
+		ptr := value.Pointer()
+		id = s.itemID(ptr, value.Elem())
+		v = value.Elem()
+	} else {
+		ptr := value.Addr().Pointer()
+		id = s.itemID(ptr, value)
+		v = value
 	}
-	s.dict[id] = value
+	if _, ok := s.dict[id]; ok {
+		return id
+	}
+	s.dict[id] = v
+	return id
 }
 
 func (s *serializerImpl) serializeToWriter(
@@ -141,43 +149,25 @@ func (s *serializerImpl) serializeItem(
 		fmt.Fprintf(writer, "[")
 		for i := 0; i < value.Len(); i++ {
 			f := value.Index(i)
-			var itemID string
-			if f.Kind() == reflect.Ptr {
-				fPtr := f.Pointer()
-				itemID = s.itemID(fPtr, f.Elem())
-				s.addToDict(itemID, f.Elem())
-			} else {
-				fPtr := f.Addr().Pointer()
-				itemID = s.itemID(fPtr, f)
-				s.addToDict(itemID, f)
-			}
-			s.addToDictToSerialize(itemID)
+			fID := s.addToDict(f)
+			s.addToDictToSerialize(fID)
 			if i > 0 {
 				fmt.Fprint(writer, ",")
 			}
-			fmt.Fprintf(writer, `"%s"`, itemID)
+			fmt.Fprintf(writer, `"%s"`, fID)
 		}
 		fmt.Fprintf(writer, "]")
 	case reflect.Struct:
 		fmt.Fprintf(writer, `{"v":{`)
 		for i := 0; i < value.NumField(); i++ {
 			f := value.Field(i)
-			var itemID string
-			if f.Kind() == reflect.Ptr {
-				fPtr := f.Pointer()
-				itemID = s.itemID(fPtr, f.Elem())
-				s.addToDict(itemID, f.Elem())
-			} else {
-				fPtr := f.Addr().Pointer()
-				itemID = s.itemID(fPtr, f)
-				s.addToDict(itemID, f)
-			}
-			s.addToDictToSerialize(itemID)
+			fID := s.addToDict(f)
+			s.addToDictToSerialize(fID)
 			if i > 0 {
 				fmt.Fprint(writer, ",")
 			}
 			fieldName := value.Type().Field(i).Name
-			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, itemID)
+			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, fID)
 		}
 		fmt.Fprintf(writer, `},"t":"%s","k":%d}`,
 			s.typeString(value), value.Kind())
