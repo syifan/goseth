@@ -7,22 +7,6 @@ import (
 	"reflect"
 )
 
-type rootObj struct {
-	root *elem
-	dict map[uint64]dictEntry
-}
-
-type elem struct {
-	value    interface{}
-	itemType string
-	itemKind int
-}
-
-type dictEntry struct {
-	ptr   uint64
-	value reflect.Value
-}
-
 type serializerImpl struct {
 	dict            map[string]reflect.Value
 	serializedPtr   map[string]bool
@@ -55,11 +39,19 @@ func (s *serializerImpl) Serialize(
 	return nil
 }
 
+func (s *serializerImpl) typeString(value reflect.Value) string {
+	if value.Type().PkgPath() == "" {
+		return value.Type().Name()
+	}
+
+	return fmt.Sprintf("%s.%s", value.Type().PkgPath(), value.Type().Name())
+}
+
 func (s *serializerImpl) itemID(
 	ptr uintptr,
 	value reflect.Value,
 ) string {
-	id := fmt.Sprintf("%d@%s.%s", ptr, value.Type().PkgPath(), value.Type())
+	id := fmt.Sprintf("%d@%s", ptr, s.typeString(value))
 	return id
 }
 
@@ -129,14 +121,14 @@ func (s *serializerImpl) serializeItem(
 	value := s.dict[id]
 	switch value.Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d,"p":"%s"}`,
-			value.Int(), value.Type(), value.Kind(), id)
+		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d}`,
+			value.Int(), s.typeString(value), value.Kind())
 	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d,"p":"%s"}`,
-			value.Float(), value.Type(), value.Kind(), id)
+		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d}`,
+			value.Float(), s.typeString(value), value.Kind())
 	case reflect.Bool:
-		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d,"p":"%s"}`,
-			value.Bool(), value.Type(), value.Kind(), id)
+		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d}`,
+			value.Bool(), s.typeString(value), value.Kind())
 	case reflect.Ptr:
 		itemID := s.itemID(value.Pointer(), value.Elem())
 		s.serializeItem(writer, itemID)
@@ -159,10 +151,9 @@ func (s *serializerImpl) serializeItem(
 			}
 			fieldName := value.Type().Field(i).Name
 			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, itemID)
-			fmt.Println("processing field ", i, f, itemID, fieldName, f.Type(), f.Kind())
 		}
-		fmt.Fprintf(writer, `},"t":"%s","k":%d,"p":"%s"}`,
-			value.Type(), value.Kind(), id)
+		fmt.Fprintf(writer, `},"t":"%s","k":%d}`,
+			s.typeString(value), value.Kind())
 
 	default:
 		return errors.New(

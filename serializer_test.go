@@ -8,6 +8,8 @@ import (
 	. "github.com/syifan/goseth"
 )
 
+var idExp = `[0-9]+@[a-zA-Z_0-9\./]+`
+
 var _ = Describe("Serializer Impl", func() {
 	var (
 		s  Serializer
@@ -21,7 +23,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize int", func() {
 		a := int(6)
-		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":6,"t":"int","k":2,"p":[0-9]+}}}`
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":6,"t":"int","k":2}}`
 
 		err := s.Serialize(&a, &sb)
 
@@ -31,7 +33,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize int32", func() {
 		a := int32(6)
-		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":6,"t":"int32","k":5,"p":[0-9]+}}}`
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":6,"t":"int32","k":5}}}`
 
 		err := s.Serialize(&a, &sb)
 
@@ -41,7 +43,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize float32", func() {
 		a := float32(0.02)
-		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":[0-9\.]+,"t":"float32","k":13,"p":[0-9]+}}}`
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":[0-9\.]+,"t":"float32","k":13}}}`
 
 		err := s.Serialize(&a, &sb)
 
@@ -51,7 +53,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize bool", func() {
 		a := true
-		exp := `{"root":[0-9]+,"dict":{"[0-9]+":{"v":true,"t":"bool","k":1,"p":[0-9]+}}}`
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":true,"t":"bool","k":1}}}`
 
 		err := s.Serialize(&a, &sb)
 
@@ -61,7 +63,7 @@ var _ = Describe("Serializer Impl", func() {
 
 	It("should serialize simple struct", func() {
 		a := sampleStruct1{}
-		exp := `{"root":[0-9]+,dict:{"[0-9]+":{"v":{Field1":[0-9]+,"field2":[0-9]+},t:"github.com/syifan/goseth_test.sampleStruct1","k":25,ptr:[0-9]+},"[0-9]+":{"v":false,"t":"bool","k":1,"p":[0-9]+},"[0-9]+":{"v":0,"t":"int","k":2,"p":[0-9]+}}`
+		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":false,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}`
 
 		err := s.Serialize(&a, &sb)
 
