@@ -12,6 +12,7 @@ import (
 // Server runs an HTTP server and shows the serialization results over webpage
 type Server struct {
 	item       interface{}
+	serializer goseth.InteractiveSerializer
 	fileServer http.Handler
 }
 
@@ -20,6 +21,7 @@ type Server struct {
 func NewServer(item interface{}) *Server {
 	s := &Server{
 		item:       item,
+		serializer: goseth.NewInteractiveSerializer(),
 		fileServer: http.FileServer(assets),
 	}
 	return s
@@ -40,18 +42,14 @@ func (s *Server) Run() {
 // ServeHTTP respond to client http request
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/serialize" {
-		//buf := bytes.NewBufferString("")
-		//err := goseth.MakeSerializer().Serialize(s.item, buf)
-		//if err != nil {
-		//	panic(err)
-		//}
-		//w.Write(buf.Bytes())
-		err := goseth.MakeSerializer().Serialize(s.item, w)
+		err := s.serializer.Serialize(s.item, w)
 		if err != nil {
 			panic(err)
 		}
 
 		return
+	} else if req.URL.Path == "/reset" {
+		s.serializer.Reset()
 	}
 
 	if strings.HasPrefix(req.URL.Path, "/") {
