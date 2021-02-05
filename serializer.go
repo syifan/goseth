@@ -184,7 +184,7 @@ func (s *serializerImpl) serializeItem(
 		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d}`,
 			value.Bool(), s.typeString(value), value.Kind())
 	case reflect.String:
-		fmt.Fprintf(writer, `{"v":%s,"t":"%s","k":%d}`,
+		fmt.Fprintf(writer, `{"v":"%s","t":"%s","k":%d}`,
 			value.String(), s.typeString(value), value.Kind())
 	case reflect.Slice:
 		fmt.Fprintf(writer, "[")
