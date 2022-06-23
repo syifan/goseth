@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	pkg, err := importer.Default().Import("github.com/onsi/ginkgo")
+	pkg, err := importer.Default().Import("github.com/onsi/ginkgo/v2")
 	if err != nil {
 		panic(err)
 	}

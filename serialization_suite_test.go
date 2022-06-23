@@ -3,7 +3,7 @@ package goseth_test
 import (
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/syifan/goseth"
 )
@@ -24,7 +24,7 @@ type sampleStruct2 struct {
 	another *sampleStruct2
 }
 
-type sampelStruct3 struct {
+type sampleStruct3 struct {
 	s sampleStruct1
 }
 

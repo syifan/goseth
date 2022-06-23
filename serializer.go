@@ -187,39 +187,78 @@ func (s *serializerImpl) serializeItem(
 		fmt.Fprintf(writer, `{"v":"%s","t":"%s","k":%d}`,
 			value.String(), s.typeString(value), value.Kind())
 	case reflect.Slice:
-		fmt.Fprintf(writer, "[")
-		for i := 0; i < value.Len(); i++ {
-			f := value.Index(i)
-			fID := s.addToDict(f)
-			if maxDepth < 0 || currDepth < maxDepth {
-				s.addToDictToSerialize(fID, currDepth+1)
-			}
-			if i > 0 {
-				fmt.Fprint(writer, ",")
-			}
-			fmt.Fprintf(writer, `"%s"`, fID)
-		}
-		fmt.Fprintf(writer, "]")
+		s.serializeSlice(writer, value, maxDepth, currDepth)
+	case reflect.Map:
+		s.serializeMap(writer, value, maxDepth, currDepth)
 	case reflect.Struct:
-		fmt.Fprintf(writer, `{"v":{`)
-		for i := 0; i < value.NumField(); i++ {
-			f := value.Field(i)
-			fID := s.addToDict(f)
-			if maxDepth < 0 || currDepth < maxDepth {
-				s.addToDictToSerialize(fID, currDepth+1)
-			}
-			if i > 0 {
-				fmt.Fprint(writer, ",")
-			}
-			fieldName := value.Type().Field(i).Name
-			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, fID)
-		}
-		fmt.Fprintf(writer, `},"t":"%s","k":%d}`,
-			s.typeString(value), value.Kind())
-
+		s.serializeStruct(writer, value, maxDepth, currDepth)
 	default:
 		return errors.New(
 			"type kind " + value.Kind().String() + " is not supported.")
 	}
 	return nil
+}
+
+func (s *serializerImpl) serializeSlice(
+	writer io.Writer, value reflect.Value,
+	maxDepth, currDepth int,
+) {
+	fmt.Fprintf(writer, "[")
+	for i := 0; i < value.Len(); i++ {
+		f := value.Index(i)
+		fID := s.addToDict(f)
+		if maxDepth < 0 || currDepth < maxDepth {
+			s.addToDictToSerialize(fID, currDepth+1)
+		}
+		if i > 0 {
+			fmt.Fprint(writer, ",")
+		}
+		fmt.Fprintf(writer, `"%s"`, fID)
+	}
+	fmt.Fprintf(writer, "]")
+}
+
+func (s *serializerImpl) serializeMap(
+	writer io.Writer,
+	value reflect.Value,
+	maxDepth, currDepth int,
+) {
+	fmt.Fprintf(writer, "{")
+	for i, key := range value.MapKeys() {
+		f := value.MapIndex(key)
+		fID := s.addToDict(f)
+		if maxDepth < 0 || currDepth < maxDepth {
+			s.addToDictToSerialize(fID, currDepth+1)
+		}
+		if i > 0 {
+			fmt.Fprint(writer, ",")
+		}
+
+		fmt.Fprintf(writer, "%s:%s", key, fID)
+	}
+
+	fmt.Fprintf(writer, `},"t":%s,"k":%d`, s.typeString(value), value.Kind())
+}
+
+func (s *serializerImpl) serializeStruct(
+	writer io.Writer,
+	value reflect.Value,
+	maxDepth, currDepth int,
+) {
+	fmt.Fprintf(writer, `{"v":{`)
+	for i := 0; i < value.NumField(); i++ {
+		f := value.Field(i)
+		fID := s.addToDict(f)
+		if maxDepth < 0 || currDepth < maxDepth {
+			s.addToDictToSerialize(fID, currDepth+1)
+		}
+		if i > 0 {
+			fmt.Fprint(writer, ",")
+		}
+		fieldName := value.Type().Field(i).Name
+		fmt.Fprintf(writer, `"%s":"%s"`, fieldName, fID)
+	}
+
+	fmt.Fprintf(writer, `},"t":"%s","k":%d}`,
+		s.typeString(value), value.Kind())
 }

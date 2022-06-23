@@ -3,7 +3,7 @@ package goseth_test
 import (
 	"strings"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/syifan/goseth"
 )
@@ -61,7 +61,7 @@ var _ = Describe("Serializer Impl", func() {
 		Expect(sb.String()).To(MatchRegexp(exp))
 	})
 
-	It("should serialize simple struct", func() {
+	FIt("should serialize simple struct", func() {
 		a := sampleStruct1{}
 		a.Field1 = true
 		exp := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":true,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}`
@@ -108,13 +108,23 @@ var _ = Describe("Serializer Impl", func() {
 	})
 
 	It("should serialize nested structs", func() {
-		b := sampelStruct3{s: sampleStruct1{Field1: true}}
+		b := sampleStruct3{s: sampleStruct1{Field1: true}}
 		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"s":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampelStruct3","k":25},"` + idExp + `":{"v":{"Field1":"` + idExp + `","field2":"` + idExp + `"},"t":"github.com/syifan/goseth_test.sampleStruct1","k":25},"` + idExp + `":{"v":true,"t":"bool","k":1},"` + idExp + `":{"v":0,"t":"int","k":2}}}`
 
 		err := s.Serialize(&b, &sb)
 
 		Expect(err).To(BeNil())
 		Expect(sb.String()).To(MatchRegexp(re))
+		print(sb.String())
 	})
 
+	It("should serialize map", func() {
+		b := map[string]int{"a": 1, "b": 2}
+		re := `{"root":"` + idExp + `","dict":{"` + idExp + `":{"v":{"a":` + idExp + `,"b":` + idExp + `},"t":"map[string]int","k":21}}}`
+
+		err := s.Serialize(&b, &sb)
+
+		Expect(err).To(BeNil())
+		Expect(sb.String()).To(MatchRegexp(re))
+	})
 })
