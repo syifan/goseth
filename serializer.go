@@ -8,8 +8,9 @@ import (
 )
 
 type serializeItem struct {
-	id   uint64
-	item reflect.Value
+	id    uint64
+	depth int
+	item  reflect.Value
 }
 
 type serializer struct {
@@ -32,20 +33,21 @@ func (s *serializer) Serialize(writer io.Writer) error {
 	s.dict = make([]serializeItem, 0)
 	s.nextDictID = 0
 
-	s.addToDict(reflect.ValueOf(s.root))
+	s.addToDict(reflect.ValueOf(s.root), 0)
 
-	fmt.Fprintf(writer, `{"r":"0" "dict":`)
+	fmt.Fprintf(writer, `{"r":"0","dict":`)
 	s.serializeDict(writer)
 	fmt.Fprintf(writer, `}`)
 
 	return nil
 }
 
-func (s *serializer) addToDict(v reflect.Value) uint64 {
+func (s *serializer) addToDict(v reflect.Value, depth int) uint64 {
 	v = s.strip(v)
 	s.dict = append(s.dict, serializeItem{
-		id:   s.nextDictID,
-		item: v,
+		id:    s.nextDictID,
+		depth: depth,
+		item:  v,
 	})
 
 	id := s.nextDictID
@@ -75,12 +77,14 @@ func (s *serializer) serializeDict(writer io.Writer) {
 		if s.isZero(v) {
 			fmt.Fprintf(writer, `"%d":{"k":0,"t":"0","v":null}`, k)
 		} else {
-			fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s","v":`,
+			fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s"`,
 				k, v.Kind(), s.typeString(v))
-			s.serializeValue(writer, v)
+			if s.maxDepth < 0 || item.depth < s.maxDepth {
+				fmt.Fprint(writer, `,"v":`)
+				s.serializeValue(writer, v, item.depth)
+			}
+			fmt.Fprintf(writer, `}`)
 		}
-
-		fmt.Fprintf(writer, `}`)
 	}
 
 	fmt.Fprintf(writer, `}`)
@@ -105,7 +109,11 @@ func (s *serializer) strip(v reflect.Value) reflect.Value {
 	}
 }
 
-func (s *serializer) serializeValue(writer io.Writer, v reflect.Value) {
+func (s *serializer) serializeValue(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
 	switch v.Kind() {
 	case reflect.Bool:
 		fmt.Fprintf(writer, `%t`, v.Bool())
@@ -118,17 +126,21 @@ func (s *serializer) serializeValue(writer io.Writer, v reflect.Value) {
 	case reflect.String:
 		fmt.Fprintf(writer, `"%s"`, v.String())
 	case reflect.Slice:
-		s.serializeSlice(writer, v)
+		s.serializeSlice(writer, v, depth)
 	case reflect.Map:
-		s.serializeMap(writer, v)
+		s.serializeMap(writer, v, depth)
 	case reflect.Struct:
-		s.serializeStruct(writer, v)
+		s.serializeStruct(writer, v, depth)
 	default:
 		panic(fmt.Sprintf("kind %d not supported", v.Kind()))
 	}
 }
 
-func (s *serializer) serializeMap(writer io.Writer, v reflect.Value) {
+func (s *serializer) serializeMap(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
 	fmt.Fprintf(writer, `{`)
 
 	for i, key := range v.MapKeys() {
@@ -136,28 +148,36 @@ func (s *serializer) serializeMap(writer io.Writer, v reflect.Value) {
 			fmt.Fprint(writer, `,`)
 		}
 
-		keyID := s.addToDict(key)
-		valueID := s.addToDict(v.MapIndex(key))
+		keyID := s.addToDict(key, depth+1)
+		valueID := s.addToDict(v.MapIndex(key), depth+1)
 		fmt.Fprintf(writer, `"%d":"%d"`, keyID, valueID)
 	}
 
 	fmt.Fprintf(writer, `}`)
 }
 
-func (s *serializer) serializeSlice(writer io.Writer, v reflect.Value) {
+func (s *serializer) serializeSlice(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
 	fmt.Fprintf(writer, `[`)
 	for i := 0; i < v.Len(); i++ {
 		if i > 0 {
 			fmt.Fprint(writer, `,`)
 		}
 
-		id := s.addToDict(reflect.ValueOf(v.Index(i).Interface()))
+		id := s.addToDict(reflect.ValueOf(v.Index(i).Interface()), depth+1)
 		fmt.Fprintf(writer, `"%d"`, id)
 	}
 	fmt.Fprintf(writer, `]`)
 }
 
-func (s *serializer) serializeStruct(writer io.Writer, v reflect.Value) {
+func (s *serializer) serializeStruct(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
 	fmt.Fprintf(writer, `{`)
 
 	for i := 0; i < v.NumField(); i++ {
@@ -166,7 +186,7 @@ func (s *serializer) serializeStruct(writer io.Writer, v reflect.Value) {
 		}
 
 		field := v.Field(i)
-		fieldID := s.addToDict(field)
+		fieldID := s.addToDict(field, depth+1)
 
 		fmt.Fprintf(writer, `"%s":"%d"`, v.Type().Field(i).Name, fieldID)
 	}

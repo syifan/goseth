@@ -25,7 +25,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{"0":{"k":1,"t":"bool","v":true}}}`,
+			`{"r":"0","dict":{"0":{"k":1,"t":"bool","v":true}}}`,
 		))
 	})
 
@@ -36,7 +36,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{"0":{"k":2,"t":"int","v":1}}}`,
+			`{"r":"0","dict":{"0":{"k":2,"t":"int","v":1}}}`,
 		))
 	})
 
@@ -47,7 +47,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{"0":{"k":7,"t":"uint","v":1}}}`,
+			`{"r":"0","dict":{"0":{"k":7,"t":"uint","v":1}}}`,
 		))
 	})
 
@@ -58,7 +58,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(MatchRegexp(
-			`{"r":"0" "dict":{"0":{"k":14,"t":"float64","v":[0-9\.]+}}}`,
+			`{"r":"0","dict":{"0":{"k":14,"t":"float64","v":[0-9\.]+}}}`,
 		))
 	})
 
@@ -69,7 +69,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(MatchRegexp(
-			`{"r":"0" "dict":{"0":{"k":24,"t":"string","v":"abcde"}}}`,
+			`{"r":"0","dict":{"0":{"k":24,"t":"string","v":"abcde"}}}`,
 		))
 	})
 
@@ -80,7 +80,7 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{` +
+			`{"r":"0","dict":{` +
 				`"0":{"k":23,"t":"[]int","v":["1","2","3"]},` +
 				`"1":{"k":2,"t":"int","v":1},` +
 				`"2":{"k":2,"t":"int","v":2},` +
@@ -96,7 +96,7 @@ var _ = Describe("Serializer", func() {
 		Expect(s.Serialize(&sb)).To(Succeed())
 
 		Expect(sb.String()).To(MatchRegexp(
-			`{"r":"0" "dict":{` +
+			`{"r":"0","dict":{` +
 				`"0":{"k":21,"t":"map\[string\]int","v":{"1":"2","3":"4"}},` +
 				`"1":{"k":24,"t":"string","v":"[a|b]"},` +
 				`"2":{"k":2,"t":"int","v":[1|2]},` +
@@ -118,7 +118,7 @@ var _ = Describe("Serializer", func() {
 		Expect(s.Serialize(&sb)).To(Succeed())
 
 		Expect(sb.String()).To(MatchRegexp(
-			`{"r":"0" "dict":{` +
+			`{"r":"0","dict":{` +
 				`"0":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"1","b":"2"}},` +
 				`"1":{"k":2,"t":"int","v":1},` +
 				`"2":{"k":24,"t":"string","v":"abcde"}}}`,
@@ -138,7 +138,7 @@ var _ = Describe("Serializer", func() {
 		Expect(s.Serialize(&sb)).To(Succeed())
 
 		Expect(sb.String()).To(MatchRegexp(
-			`{"r":"0" "dict":{` +
+			`{"r":"0","dict":{` +
 				`"0":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"1","b":"2"}},` +
 				`"1":{"k":2,"t":"int","v":1},` +
 				`"2":{"k":24,"t":"string","v":"abcde"}}}`,
@@ -154,7 +154,7 @@ var _ = Describe("Serializer", func() {
 		Expect(s.Serialize(&sb)).To(Succeed())
 
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{"0": {"k":0,"t":"0","v":null}}}`,
+			`{"r":"0","dict":{"0":{"k":0,"t":"0","v":null}}}`,
 		))
 	})
 
@@ -171,7 +171,30 @@ var _ = Describe("Serializer", func() {
 
 		Expect(s.Serialize(&sb)).To(Succeed())
 		Expect(sb.String()).To(Equal(
-			`{"r":"0" "dict":{` +
+			`{"r":"0","dict":{` +
 				`"0":{"k":25,"t":"github.com/syifan/goseth.Foo"}}}`))
+	})
+
+	It("should serialize limited depth", func() {
+		type Foo struct {
+			A    int
+			Nest *Foo
+		}
+
+		item := Foo{A: 1, Nest: &Foo{A: 2, Nest: &Foo{A: 3}}}
+
+		s.SetRoot(item)
+		s.SetMaxDepth(2)
+
+		Expect(s.Serialize(&sb)).To(Succeed())
+		Expect(sb.String()).To(Equal(
+			`{"r":"0","dict":{` +
+				`"0":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"1","Nest":"2"}},` +
+				`"1":{"k":2,"t":"int","v":1},` +
+				`"2":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"3","Nest":"4"}},` +
+				`"3":{"k":2,"t":"int"},` +
+				`"4":{"k":25,"t":"github.com/syifan/goseth.Foo"}` +
+				`}}`,
+		))
 	})
 })

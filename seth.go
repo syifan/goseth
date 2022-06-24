@@ -10,7 +10,7 @@ type Serializer interface {
 
 	// SetMaxDepth sets the maximum depth of the serialization. If the depth
 	// is exceeded, the serializer will stop serializing the item.
-	// SetMaxDepth(0) means no limit.
+	// SetMaxDepth(-1) means no limit.
 	SetMaxDepth(depth int)
 
 	// Serialize serializes the item into the writer.
@@ -19,5 +19,5 @@ type Serializer interface {
 
 // NewSerializer returns a new default serializer.
 func NewSerializer() Serializer {
-	return &serializer{}
+	return &serializer{maxDepth: -1}
 }
