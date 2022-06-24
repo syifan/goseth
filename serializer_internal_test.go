@@ -207,7 +207,7 @@ var _ = Describe("Serializer", func() {
 	})
 
 	Context("when using entry point", func() {
-		It("should serialize entry point based on struct", func() {
+		It("should serialize entry point based on structs", func() {
 			type Foo struct {
 				A int
 				b string
@@ -226,7 +226,7 @@ var _ = Describe("Serializer", func() {
 			))
 		})
 
-		It("should serialize entry point based on slice", func() {
+		It("should serialize entry point based on slices", func() {
 			type Foo struct {
 				A []int
 				b string
@@ -245,5 +245,23 @@ var _ = Describe("Serializer", func() {
 			))
 		})
 
+		It("should serialize entry point based on maps", func() {
+			type Foo struct {
+				A map[string]int
+				b string
+			}
+
+			item := Foo{A: map[string]int{"a": 1, "b": 2}, b: "abcde"}
+
+			s.SetRoot(item)
+			s.SetEntryPoint([]string{"A", "b"})
+
+			Expect(s.Serialize(&sb)).To(Succeed())
+
+			Expect(sb.String()).To(MatchRegexp(
+				`{"r":"0","dict":{` +
+					`"0":{"k":2,"t":"int","v":2}}}`,
+			))
+		})
 	})
 })

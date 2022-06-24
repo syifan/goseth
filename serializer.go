@@ -43,17 +43,25 @@ func (s *serializer) SetEntryPoint(ep []string) error {
 		switch v.Kind() {
 		case reflect.Struct:
 			v = v.FieldByName(next)
-		// case reflect.Map:
-		// 	v = v.MapIndex(next)
+			if !v.IsValid() {
+				return fmt.Errorf("field %s not found", next)
+			}
+		case reflect.Map:
+			v = v.MapIndex(reflect.ValueOf(next))
+			if !v.IsValid() {
+				return fmt.Errorf("key %s not found", next)
+			}
 		case reflect.Slice:
 			index, err := strconv.Atoi(next)
 			if err != nil {
 				return err
 			}
-
 			v = v.Index(index)
+			if !v.IsValid() {
+				return fmt.Errorf("index %d is not valid", index)
+			}
 		default:
-			panic(fmt.Sprintf("kind %s not supported", v.Kind().String()))
+			return fmt.Errorf("type %s is not supported", v.Type())
 		}
 	}
 
