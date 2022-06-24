@@ -116,7 +116,7 @@ func (s *serializer) serializeDict(writer io.Writer) {
 		count++
 
 		if s.isZero(v) {
-			fmt.Fprintf(writer, `"%d":{"k":0,"t":"0","v":null}`, k)
+			fmt.Fprintf(writer, `"%d":{"k":0,"t":"null","v":null}`, k)
 		} else {
 			fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s"`,
 				k, v.Kind(), s.typeString(v))
