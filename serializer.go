@@ -103,32 +103,54 @@ func (s *serializer) serializeDict(writer io.Writer) {
 
 	count := 0
 	for len(s.dict) > 0 {
-		item := s.dict[0]
-		s.dict = s.dict[1:]
-
-		k := item.id
-		v := item.item
-		v = s.strip(v)
-
 		if count > 0 {
 			fmt.Fprintf(writer, `,`)
 		}
 		count++
 
-		if s.isZero(v) {
-			fmt.Fprintf(writer, `"%d":{"k":0,"t":"null","v":null}`, k)
-		} else {
-			fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s"`,
-				k, v.Kind(), s.typeString(v))
-			if s.maxDepth < 0 || item.depth < s.maxDepth {
-				fmt.Fprint(writer, `,"v":`)
-				s.serializeValue(writer, v, item.depth)
-			}
-			fmt.Fprintf(writer, `}`)
-		}
+		s.serializeOneDictItem(writer)
 	}
 
 	fmt.Fprintf(writer, `}`)
+}
+
+func (s *serializer) serializeOneDictItem(writer io.Writer) {
+	item := s.dict[0]
+	s.dict = s.dict[1:]
+
+	k := item.id
+	v := item.item
+	v = s.strip(v)
+
+	if s.isZero(v) {
+		fmt.Fprintf(writer, `"%d":{"k":0,"t":"null","v":null}`, k)
+	} else {
+		fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s"`,
+			k, v.Kind(), s.typeString(v))
+		if s.needSerializeValue(item) {
+			fmt.Fprint(writer, `,"v":`)
+			s.serializeValue(writer, v, item.depth)
+		}
+		fmt.Fprintf(writer, `}`)
+	}
+}
+
+func (s *serializer) needSerializeValue(item serializeItem) bool {
+	if s.maxDepth < 0 {
+		return true
+	}
+
+	if item.depth < s.maxDepth {
+		return true
+	}
+
+	v := s.strip(item.item)
+	switch v.Kind() {
+	case reflect.Struct, reflect.Map, reflect.Slice:
+		return false
+	}
+
+	return true
 }
 
 func (s *serializer) isZero(v reflect.Value) bool {
