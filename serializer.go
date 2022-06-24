@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -17,23 +18,55 @@ type serializer struct {
 	root     any
 	maxDepth int
 
+	tempRoot   reflect.Value
 	dict       []serializeItem
 	nextDictID uint64
 }
 
 func (s *serializer) SetRoot(item any) {
 	s.root = item
+	s.tempRoot = reflect.ValueOf(item)
 }
 
 func (s *serializer) SetMaxDepth(depth int) {
 	s.maxDepth = depth
 }
 
+func (s *serializer) SetEntryPoint(ep []string) error {
+	v := reflect.ValueOf(s.root)
+	for len(ep) > 0 {
+		next := ep[0]
+		ep = ep[1:]
+
+		v = s.strip(v)
+
+		switch v.Kind() {
+		case reflect.Struct:
+			v = v.FieldByName(next)
+		// case reflect.Map:
+		// 	v = v.MapIndex(next)
+		case reflect.Slice:
+			index, err := strconv.Atoi(next)
+			if err != nil {
+				return err
+			}
+
+			v = v.Index(index)
+		default:
+			panic(fmt.Sprintf("kind %s not supported", v.Kind().String()))
+		}
+	}
+
+	s.tempRoot = v
+
+	return nil
+}
+
 func (s *serializer) Serialize(writer io.Writer) error {
 	s.dict = make([]serializeItem, 0)
 	s.nextDictID = 0
 
-	s.addToDict(reflect.ValueOf(s.root), 0)
+	s.addToDict(s.tempRoot, 0)
 
 	fmt.Fprintf(writer, `{"r":"0","dict":`)
 	s.serializeDict(writer)
