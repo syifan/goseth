@@ -83,7 +83,7 @@ var _ = Describe("Serializer", func() {
 			Expect(s.Serialize(&sb)).To(Succeed())
 
 			Expect(sb.String()).To(Equal(
-				`{"r":"0","dict":{"0":{"k":0,"t":"0","v":null}}}`,
+				`{"r":"0","dict":{"0":{"k":0,"t":"null","v":null}}}`,
 			))
 		})
 	})
@@ -191,16 +191,14 @@ var _ = Describe("Serializer", func() {
 			item := Foo{A: 1, Nest: &Foo{A: 2, Nest: &Foo{A: 3}}}
 
 			s.SetRoot(item)
-			s.SetMaxDepth(2)
+			s.SetMaxDepth(1)
 
 			Expect(s.Serialize(&sb)).To(Succeed())
 			Expect(sb.String()).To(Equal(
 				`{"r":"0","dict":{` +
 					`"0":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"1","Nest":"2"}},` +
 					`"1":{"k":2,"t":"int","v":1},` +
-					`"2":{"k":25,"t":"github.com/syifan/goseth.Foo","v":{"A":"3","Nest":"4"}},` +
-					`"3":{"k":2,"t":"int"},` +
-					`"4":{"k":25,"t":"github.com/syifan/goseth.Foo"}` +
+					`"2":{"k":25,"t":"github.com/syifan/goseth.Foo"}` +
 					`}}`,
 			))
 		})
