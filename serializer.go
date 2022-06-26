@@ -131,6 +131,9 @@ func (s *serializer) serializeOneDictItem(writer io.Writer) {
 			fmt.Fprint(writer, `,"v":`)
 			s.serializeValue(writer, v, item.depth)
 		}
+		if s.needSerializeLen(item) {
+			fmt.Fprintf(writer, `,"l":%d`, v.Len())
+		}
 		fmt.Fprintf(writer, `}`)
 	}
 }
@@ -151,6 +154,16 @@ func (s *serializer) needSerializeValue(item serializeItem) bool {
 	}
 
 	return true
+}
+
+func (s *serializer) needSerializeLen(item serializeItem) bool {
+	v := s.strip(item.item)
+	switch v.Kind() {
+	case reflect.Map, reflect.Slice, reflect.Array, reflect.Chan:
+		return true
+	}
+
+	return false
 }
 
 func (s *serializer) isZero(v reflect.Value) bool {
@@ -188,6 +201,8 @@ func (s *serializer) serializeValue(
 		fmt.Fprintf(writer, `%f`, v.Float())
 	case reflect.String:
 		fmt.Fprintf(writer, `"%s"`, v.String())
+	case reflect.Chan:
+		s.serializeChan(writer, v, depth)
 	case reflect.Slice:
 		s.serializeSlice(writer, v, depth)
 	case reflect.Map:
@@ -195,8 +210,17 @@ func (s *serializer) serializeValue(
 	case reflect.Struct:
 		s.serializeStruct(writer, v, depth)
 	default:
-		panic(fmt.Sprintf("kind %d not supported", v.Kind()))
+		panic(fmt.Sprintf("kind %s not supported", v.Kind().String()))
 	}
+}
+
+func (s *serializer) serializeChan(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
+	fmt.Fprintf(writer, `{"k":18,"t":"%s","l":%d}`,
+		s.typeString(v), v.Len())
 }
 
 func (s *serializer) serializeMap(
@@ -230,7 +254,7 @@ func (s *serializer) serializeSlice(
 			fmt.Fprint(writer, `,`)
 		}
 
-		id := s.addToDict(reflect.ValueOf(v.Index(i).Interface()), depth+1)
+		id := s.addToDict(v.Index(i), depth+1)
 		fmt.Fprintf(writer, `"%d"`, id)
 	}
 	fmt.Fprintf(writer, `]`)

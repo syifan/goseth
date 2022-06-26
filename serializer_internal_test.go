@@ -97,7 +97,7 @@ var _ = Describe("Serializer", func() {
 			Expect(s.Serialize(&sb)).To(Succeed())
 			Expect(sb.String()).To(Equal(
 				`{"r":"0","dict":{` +
-					`"0":{"k":23,"t":"[]int","v":["1","2","3"]},` +
+					`"0":{"k":23,"t":"[]int","v":["1","2","3"],"l":3},` +
 					`"1":{"k":2,"t":"int","v":1},` +
 					`"2":{"k":2,"t":"int","v":2},` +
 					`"3":{"k":2,"t":"int","v":3}}}`,
@@ -113,7 +113,7 @@ var _ = Describe("Serializer", func() {
 
 			Expect(sb.String()).To(MatchRegexp(
 				`{"r":"0","dict":{` +
-					`"0":{"k":21,"t":"map\[string\]int","v":{"1":"2","3":"4"}},` +
+					`"0":{"k":21,"t":"map\[string\]int","v":{"1":"2","3":"4"},"l":2},` +
 					`"1":{"k":24,"t":"string","v":"[a|b]"},` +
 					`"2":{"k":2,"t":"int","v":[1|2]},` +
 					`"3":{"k":24,"t":"string","v":"[a|b]"},` +
