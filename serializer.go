@@ -1,46 +1,263 @@
 package goseth
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
-type serializerImpl struct {
-	dict             map[string]reflect.Value
-	serializedPtr    map[string]bool
-	dictToSerialize  []string
-	idToDepthMapping map[string]int
-	maxLayer         int
+type serializeItem struct {
+	id    uint64
+	depth int
+	item  reflect.Value
 }
 
-// MakeSerializer creates a default serializer
-func MakeSerializer() Serializer {
-	return &serializerImpl{
-		dict:             make(map[string]reflect.Value),
-		serializedPtr:    make(map[string]bool),
-		idToDepthMapping: make(map[string]int),
-	}
+type serializer struct {
+	root     any
+	maxDepth int
+
+	tempRoot   reflect.Value
+	dict       []serializeItem
+	nextDictID uint64
 }
 
-func (s *serializerImpl) Serialize(
-	item interface{},
-	writer io.Writer,
-) error {
-	s.serializedPtr = make(map[string]bool)
-	s.dictToSerialize = nil
-	value := reflect.ValueOf(item)
-	id := s.addToDict(value)
-	err := s.serializeToWriter(writer, id, -1)
-	if err != nil {
-		return err
+func (s *serializer) SetRoot(item any) {
+	s.root = item
+	s.tempRoot = reflect.ValueOf(item)
+}
+
+func (s *serializer) SetMaxDepth(depth int) {
+	s.maxDepth = depth
+}
+
+func (s *serializer) SetEntryPoint(ep []string) error {
+	v := reflect.ValueOf(s.root)
+	for len(ep) > 0 {
+		next := ep[0]
+		ep = ep[1:]
+
+		v = s.strip(v)
+
+		switch v.Kind() {
+		case reflect.Struct:
+			v = v.FieldByName(next)
+			if !v.IsValid() {
+				return fmt.Errorf("field %s not found", next)
+			}
+		case reflect.Map:
+			v = v.MapIndex(reflect.ValueOf(next))
+			if !v.IsValid() {
+				return fmt.Errorf("key %s not found", next)
+			}
+		case reflect.Slice:
+			index, err := strconv.Atoi(next)
+			if err != nil {
+				return err
+			}
+			v = v.Index(index)
+			if !v.IsValid() {
+				return fmt.Errorf("index %d is not valid", index)
+			}
+		default:
+			return fmt.Errorf("type %s is not supported", v.Type())
+		}
 	}
+
+	s.tempRoot = v
+
 	return nil
 }
 
-func (s *serializerImpl) typeString(value reflect.Value) string {
+func (s *serializer) Serialize(writer io.Writer) error {
+	s.dict = make([]serializeItem, 0)
+	s.nextDictID = 0
+
+	s.addToDict(s.tempRoot, 0)
+
+	fmt.Fprintf(writer, `{"r":"0","dict":`)
+	s.serializeDict(writer)
+	fmt.Fprintf(writer, `}`)
+
+	return nil
+}
+
+func (s *serializer) addToDict(v reflect.Value, depth int) uint64 {
+	v = s.strip(v)
+	s.dict = append(s.dict, serializeItem{
+		id:    s.nextDictID,
+		depth: depth,
+		item:  v,
+	})
+
+	id := s.nextDictID
+
+	s.nextDictID++
+
+	return id
+}
+
+func (s *serializer) serializeDict(writer io.Writer) {
+	fmt.Fprintf(writer, `{`)
+
+	count := 0
+	for len(s.dict) > 0 {
+		if count > 0 {
+			fmt.Fprintf(writer, `,`)
+		}
+		count++
+
+		s.serializeOneDictItem(writer)
+	}
+
+	fmt.Fprintf(writer, `}`)
+}
+
+func (s *serializer) serializeOneDictItem(writer io.Writer) {
+	item := s.dict[0]
+	s.dict = s.dict[1:]
+
+	k := item.id
+	v := item.item
+	v = s.strip(v)
+
+	if s.isZero(v) {
+		fmt.Fprintf(writer, `"%d":{"k":0,"t":"null","v":null}`, k)
+	} else {
+		fmt.Fprintf(writer, `"%d":{"k":%d,"t":"%s"`,
+			k, v.Kind(), s.typeString(v))
+		if s.needSerializeValue(item) {
+			fmt.Fprint(writer, `,"v":`)
+			s.serializeValue(writer, v, item.depth)
+		}
+		fmt.Fprintf(writer, `}`)
+	}
+}
+
+func (s *serializer) needSerializeValue(item serializeItem) bool {
+	if s.maxDepth < 0 {
+		return true
+	}
+
+	if item.depth < s.maxDepth {
+		return true
+	}
+
+	v := s.strip(item.item)
+	switch v.Kind() {
+	case reflect.Struct, reflect.Map, reflect.Slice:
+		return false
+	}
+
+	return true
+}
+
+func (s *serializer) isZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Invalid:
+		return true
+	case reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
+}
+
+func (s *serializer) strip(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		return s.strip(v.Elem())
+	default:
+		return v
+	}
+}
+
+func (s *serializer) serializeValue(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
+	switch v.Kind() {
+	case reflect.Bool:
+		fmt.Fprintf(writer, `%t`, v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		fmt.Fprintf(writer, `%d`, v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		fmt.Fprintf(writer, `%d`, v.Uint())
+	case reflect.Float32, reflect.Float64:
+		fmt.Fprintf(writer, `%f`, v.Float())
+	case reflect.String:
+		fmt.Fprintf(writer, `"%s"`, v.String())
+	case reflect.Slice:
+		s.serializeSlice(writer, v, depth)
+	case reflect.Map:
+		s.serializeMap(writer, v, depth)
+	case reflect.Struct:
+		s.serializeStruct(writer, v, depth)
+	default:
+		panic(fmt.Sprintf("kind %d not supported", v.Kind()))
+	}
+}
+
+func (s *serializer) serializeMap(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
+	fmt.Fprintf(writer, `{`)
+
+	for i, key := range v.MapKeys() {
+		if i > 0 {
+			fmt.Fprint(writer, `,`)
+		}
+
+		keyID := s.addToDict(key, depth+1)
+		valueID := s.addToDict(v.MapIndex(key), depth+1)
+		fmt.Fprintf(writer, `"%d":"%d"`, keyID, valueID)
+	}
+
+	fmt.Fprintf(writer, `}`)
+}
+
+func (s *serializer) serializeSlice(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
+	fmt.Fprintf(writer, `[`)
+	for i := 0; i < v.Len(); i++ {
+		if i > 0 {
+			fmt.Fprint(writer, `,`)
+		}
+
+		id := s.addToDict(reflect.ValueOf(v.Index(i).Interface()), depth+1)
+		fmt.Fprintf(writer, `"%d"`, id)
+	}
+	fmt.Fprintf(writer, `]`)
+}
+
+func (s *serializer) serializeStruct(
+	writer io.Writer,
+	v reflect.Value,
+	depth int,
+) {
+	fmt.Fprintf(writer, `{`)
+
+	for i := 0; i < v.NumField(); i++ {
+		if i > 0 {
+			fmt.Fprint(writer, `,`)
+		}
+
+		field := v.Field(i)
+		fieldID := s.addToDict(field, depth+1)
+
+		fmt.Fprintf(writer, `"%s":"%d"`, v.Type().Field(i).Name, fieldID)
+	}
+
+	fmt.Fprintf(writer, `}`)
+}
+
+func (s *serializer) typeString(value reflect.Value) string {
 	name := value.Type().String()
 	pktPath := value.Type().PkgPath()
 
@@ -53,173 +270,4 @@ func (s *serializerImpl) typeString(value reflect.Value) string {
 	pktPath = strings.Join(tokens, "/")
 
 	return fmt.Sprintf("%s/%s", pktPath, name)
-}
-
-func (s *serializerImpl) itemID(
-	ptr uintptr,
-	value reflect.Value,
-) string {
-	if s.isZero(value) {
-		return "0"
-	}
-	id := fmt.Sprintf("%d@%s", ptr, s.typeString(value))
-	return id
-}
-
-func (s *serializerImpl) isZero(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Invalid:
-		return true
-	case reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-		return v.IsNil()
-	}
-	return false
-}
-
-func (s *serializerImpl) addToDict(
-	value reflect.Value,
-) string {
-	v := s.strip(value)
-
-	var ptr uintptr
-	if !v.CanAddr() {
-		ptr = 0
-	} else {
-		ptr = v.UnsafeAddr()
-	}
-	id := s.itemID(ptr, v)
-
-	if _, ok := s.dict[id]; ok {
-		return id
-	}
-	s.dict[id] = v
-	return id
-}
-
-func (s *serializerImpl) strip(v reflect.Value) reflect.Value {
-	switch v.Kind() {
-	case reflect.Ptr,
-		reflect.Interface:
-		return s.strip(v.Elem())
-	default:
-		return v
-	}
-}
-
-func (s *serializerImpl) serializeToWriter(
-	writer io.Writer,
-	id string,
-	maxDepth int,
-) error {
-	fmt.Fprintf(writer, `{"root":"%s","dict":`, id)
-	s.addToDictToSerialize(id, 0)
-	err := s.serializeDict(writer, maxDepth)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(writer, `}`)
-	return nil
-}
-
-func (s *serializerImpl) addToDictToSerialize(id string, depth int) {
-	if _, ok := s.serializedPtr[id]; ok {
-		return
-	}
-
-	s.serializedPtr[id] = true
-	s.idToDepthMapping[id] = depth
-	s.dictToSerialize = append(s.dictToSerialize, id)
-}
-
-func (s *serializerImpl) serializeDict(
-	writer io.Writer,
-	maxDepth int,
-) error {
-	fmt.Fprintf(writer, "{")
-
-	var i uint64
-	for len(s.dictToSerialize) > 0 {
-		itemID := s.dictToSerialize[0]
-		s.dictToSerialize = s.dictToSerialize[1:]
-
-		if i > 0 {
-			fmt.Fprintf(writer, `,`)
-		}
-		fmt.Fprintf(writer, `"%s":`, itemID)
-
-		err := s.serializeItem(writer, itemID, maxDepth)
-		if err != nil {
-			return err
-		}
-		i++
-	}
-
-	fmt.Fprintf(writer, "}")
-	return nil
-}
-
-func (s *serializerImpl) serializeItem(
-	writer io.Writer,
-	id string,
-	maxDepth int,
-) error {
-	if id == "0" {
-		fmt.Fprintf(writer, `{"v":0}`)
-		return nil
-	}
-
-	value := s.dict[id]
-	currDepth := s.idToDepthMapping[id]
-	switch value.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d}`,
-			value.Int(), s.typeString(value), value.Kind())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		fmt.Fprintf(writer, `{"v":%d,"t":"%s","k":%d}`,
-			value.Uint(), s.typeString(value), value.Kind())
-	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(writer, `{"v":%f,"t":"%s","k":%d}`,
-			value.Float(), s.typeString(value), value.Kind())
-	case reflect.Bool:
-		fmt.Fprintf(writer, `{"v":%t,"t":"%s","k":%d}`,
-			value.Bool(), s.typeString(value), value.Kind())
-	case reflect.String:
-		fmt.Fprintf(writer, `{"v":"%s","t":"%s","k":%d}`,
-			value.String(), s.typeString(value), value.Kind())
-	case reflect.Slice:
-		fmt.Fprintf(writer, "[")
-		for i := 0; i < value.Len(); i++ {
-			f := value.Index(i)
-			fID := s.addToDict(f)
-			if maxDepth < 0 || currDepth < maxDepth {
-				s.addToDictToSerialize(fID, currDepth+1)
-			}
-			if i > 0 {
-				fmt.Fprint(writer, ",")
-			}
-			fmt.Fprintf(writer, `"%s"`, fID)
-		}
-		fmt.Fprintf(writer, "]")
-	case reflect.Struct:
-		fmt.Fprintf(writer, `{"v":{`)
-		for i := 0; i < value.NumField(); i++ {
-			f := value.Field(i)
-			fID := s.addToDict(f)
-			if maxDepth < 0 || currDepth < maxDepth {
-				s.addToDictToSerialize(fID, currDepth+1)
-			}
-			if i > 0 {
-				fmt.Fprint(writer, ",")
-			}
-			fieldName := value.Type().Field(i).Name
-			fmt.Fprintf(writer, `"%s":"%s"`, fieldName, fID)
-		}
-		fmt.Fprintf(writer, `},"t":"%s","k":%d}`,
-			s.typeString(value), value.Kind())
-
-	default:
-		return errors.New(
-			"type kind " + value.Kind().String() + " is not supported.")
-	}
-	return nil
 }

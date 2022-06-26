@@ -1,0 +1,10 @@
+name: Testing
+on: [push]
+jobs:
+  Build: 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go environment
+        uses: actions/setup-go@v3.2.0
+      - name: Build the library
+        run: go build
