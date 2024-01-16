@@ -217,7 +217,7 @@ func (s *serializer) serializeValue(
 func (s *serializer) serializeChan(
 	writer io.Writer,
 	v reflect.Value,
-	depth int,
+	_ int,
 ) {
 	fmt.Fprintf(writer, `{"k":18,"t":"%s","l":%d}`,
 		s.typeString(v), v.Len())
